@@ -1,33 +1,43 @@
-# 🔫 github-issue-cannon
+# 🔫 @alien-protocol/cannon
 
 > Bulk-create GitHub issues from **CSV, PDF, DOCX, JSON, or any SQL database** — with randomized rate-limit delays, resume support, and secure token handling.
 
 ```
-npm install github-issue-cannon
+npm install @alien-protocol/cannon
 ```
 
 ---
 
 ## Table of Contents
 
-- [Quick Start](#quick-start)
-- [Secure Token Setup](#secure-token-setup)
-- [CLI Usage](#cli-usage)
-- [Programmatic Usage](#programmatic-usage)
-- [Issue Data Sources](#issue-data-sources)
-  - [CSV](#csv)
-  - [JSON](#json)
-  - [PDF](#pdf)
-  - [DOCX (Word)](#docx-word)
-  - [PostgreSQL](#postgresql)
-  - [MySQL](#mysql)
-  - [SQLite](#sqlite)
-- [Configuration Reference](#configuration-reference)
-- [Delay / Rate Limiting](#delay--rate-limiting)
-- [Resume Support](#resume-support)
-- [Dry Run Mode](#dry-run-mode)
-- [Required Issue Fields](#required-issue-fields)
-- [Security Best Practices](#security-best-practices)
+- [🔫 @alien-protocol/cannon](#-alien-protocolcannon)
+  - [Table of Contents](#table-of-contents)
+  - [Quick Start](#quick-start)
+  - [Secure Token Setup](#secure-token-setup)
+    - [Option A — `.env` file (recommended for local dev)](#option-a--env-file-recommended-for-local-dev)
+    - [Option B — Shell environment variable (recommended for CI/CD)](#option-b--shell-environment-variable-recommended-for-cicd)
+    - [Option C — CI/CD Secrets (GitHub Actions example)](#option-c--cicd-secrets-github-actions-example)
+    - [Creating a GitHub Personal Access Token (PAT)](#creating-a-github-personal-access-token-pat)
+  - [CLI Usage](#cli-usage)
+    - [CLI Examples](#cli-examples)
+  - [Programmatic Usage](#programmatic-usage)
+    - [Programmatic — from a database](#programmatic--from-a-database)
+    - [Programmatic — from a raw array](#programmatic--from-a-raw-array)
+  - [Issue Data Sources](#issue-data-sources)
+    - [CSV](#csv)
+    - [JSON](#json)
+    - [PDF](#pdf)
+    - [DOCX (Word)](#docx-word)
+    - [PostgreSQL](#postgresql)
+    - [MySQL](#mysql)
+    - [SQLite](#sqlite)
+  - [Configuration Reference](#configuration-reference)
+  - [Delay / Rate Limiting](#delay--rate-limiting)
+  - [Resume Support](#resume-support)
+  - [Dry Run Mode](#dry-run-mode)
+  - [Required Issue Fields](#required-issue-fields)
+  - [Security Best Practices](#security-best-practices)
+  - [License](#license)
 
 ---
 
@@ -36,13 +46,13 @@ npm install github-issue-cannon
 **1. Install**
 
 ```bash
-npm install github-issue-cannon
+npm install @alien-protocol/cannon
 ```
 
 **2. Set your GitHub token securely**
 
 ```bash
-cp node_modules/github-issue-cannon/.env.example .env
+cp node_modules/@alien-protocol/cannon/.env.example .env
 # Edit .env and set GITHUB_TOKEN=ghp_yourtoken
 ```
 
@@ -163,7 +173,7 @@ npx issue-cannon --source csv --file ./issues.csv \
 ## Programmatic Usage
 
 ```js
-import { IssueCannon } from 'github-issue-cannon';
+import { IssueCannon } from '@alien-protocol/cannon';
 
 const cannon = new IssueCannon({
   // token: 'ghp_...'  ← omit; use GITHUB_TOKEN env var instead
@@ -186,7 +196,7 @@ console.log(`Created: ${created.length}, Failed: ${failed.length}`);
 ### Programmatic — from a database
 
 ```js
-import { IssueCannon } from 'github-issue-cannon';
+import { IssueCannon } from '@alien-protocol/cannon';
 
 const cannon = new IssueCannon({ dryRun: false });
 
