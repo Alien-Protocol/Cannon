@@ -139,15 +139,20 @@ export class IssueCannon {
       const bar = `${c.green}${'█'.repeat(f)}${c.dim}${'░'.repeat(W - f)}${c.reset}`;
       const pct = String(Math.round((done / total) * 100)).padStart(3) + '%';
       const cnt = `${c.bold}${done}/${total}${c.reset}`;
-      const stat = status ? `  ${status}` : '';
-      // \x1b[u restores to saved position, \x1b[2K clears line, then redraws
-      process.stdout.write(`\x1b[u\x1b[2K  ${bar}  ${pct}  ${cnt}${stat}\n`);
+      // Pad status to fixed width so shorter strings don't leave old chars
+      const rawStat = status || '';
+      const stat = rawStat ? `  ${rawStat}` : '';
+      const padding = ' '.repeat(Math.max(0, 30 - rawStat.replace(/\x1b\[[\d;]*m/g, '').length));
+      // \x1b[u = restore saved cursor (top of bar)
+      // \x1b[2K = erase entire line
+      // NO \n at end — cursor stays on bar line
+      // \x1b[1B = move cursor down 1 so next write goes BELOW bar
+      process.stdout.write(`\x1b[u\x1b[2K  ${bar}  ${pct}  ${cnt}${stat}${padding}\x1b[1B\r`);
     };
 
-    // Save cursor position ONCE before loop starts — bar lives here
+    // Save cursor here — bar will always redraw at this exact position
     if (!this.silent) {
-      process.stdout.write(`\x1b[s`);  // save cursor
-      process.stdout.write(`\n`);      // reserve the bar line
+      process.stdout.write(`\x1b[s\n`);  // save + reserve bar line
     }
 
     for (let i = 0; i < pending.length; i++) {
@@ -165,12 +170,12 @@ export class IssueCannon {
         // Update bar fill + log issue BELOW bar
         drawBar(i + 1, pending.length);
         if (!this.silent)
-          process.stdout.write(`  ${c.green}✔${c.reset}  ${c.dim}#${created.number ?? i + 1}${c.reset}  ${issue.title.slice(0, 45)}  ${c.dim}${created.html_url}${c.reset}\n`);
+          process.stdout.write(`\x1b[2K  ${c.green}✔${c.reset}  ${c.dim}#${created.number ?? i + 1}${c.reset}  ${issue.title.slice(0, 48).padEnd(48)}  ${c.dim}${created.html_url}${c.reset}\n`);
 
       } catch (err) {
         drawBar(i + 1, pending.length, `${c.red}failed${c.reset}`);
         if (!this.silent)
-          process.stdout.write(`  ${c.red}✖${c.reset}  ${issue.title.slice(0, 45)}  ${c.dim}${err.message}${c.reset}\n`);
+          process.stdout.write(`\x1b[2K  ${c.red}✖${c.reset}  ${issue.title.slice(0, 48).padEnd(48)}  ${c.dim}${err.message.startsWith('DUPLICATE') ? 'already exists' : err.message.slice(0, 40)}${c.reset}\n`);
         results.failed.push({ repo: issue.repo, title: issue.title, error: err.message });
         state.failed.push({ repo: issue.repo, title: issue.title, error: err.message });
         if (config.resumable) this._saveState(state);

@@ -109,7 +109,13 @@ export async function createIssue(issue, token, dryRun = false) {
     const text = await res.text();
     throw new Error(`GitHub ${res.status} on ${repo}: ${text}`);
   }
-  return res.json();
+
+  const created = await res.json();
+  // Add newly created title to cache so duplicates in same run are caught
+  if (_existingTitles[repo]) {
+    _existingTitles[repo].add(created.title.trim().toLowerCase());
+  }
+  return created;
 }
 
 // ── Internal helpers ──────────────────────────
