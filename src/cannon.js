@@ -98,23 +98,55 @@ export class IssueCannon {
     const results = { created: [], failed: [] };
     const startTime = Date.now();
 
+    // ── Live bar setup ─────────────────────────
+    // Bar stays on one line permanently.
+    // ANSI escape codes:
+    //   \x1b[s       = save cursor position
+    //   \x1b[u       = restore cursor to saved position
+    //   \x1b[2K      = erase entire current line
+    //   \x1b[1A      = move cursor up 1 line
+    //   \n           = move to next line (for issue logs below bar)
+
+    const W = 36; // bar width in chars
+
+    const drawBar = (done, total, status = '') => {
+      if (this.silent) return;
+      const f = Math.round((done / total) * W);
+      const bar = `${c.green}${'█'.repeat(f)}${c.dim}${'░'.repeat(W - f)}${c.reset}`;
+      const pct = String(Math.round((done / total) * 100)).padStart(3) + '%';
+      const cnt = `${c.bold}${done}/${total}${c.reset}`;
+      const stat = status ? `  ${status}` : '';
+      // \x1b[u restores to saved position, \x1b[2K clears line, then redraws
+      process.stdout.write(`\x1b[u\x1b[2K  ${bar}  ${pct}  ${cnt}${stat}\n`);
+    };
+
+    // Save cursor position ONCE before loop starts — bar lives here
+    if (!this.silent) {
+      process.stdout.write(`\x1b[s`);  // save cursor
+      process.stdout.write(`\n`);      // reserve the bar line
+    }
+
     for (let i = 0; i < pending.length; i++) {
       const issue = pending[i];
 
-      try {
-        // Show bar BEFORE api call — overwrites same line every issue
-        if (!this.silent) renderBar(i, pending.length, issue, 'working');
+      // Draw bar at saved position — partial fill while working
+      drawBar(i, pending.length, `${c.yellow}creating…${c.reset}  ${c.dim}${issue.title.slice(0, 35)}${c.reset}`);
 
+      try {
         const created = await createIssue(issue, config.github.token, config.dryRun);
         results.created.push({ repo: issue.repo, title: issue.title, url: created.html_url, number: created.number });
         state.completed.push(issue.title);
         if (config.resumable) this._saveState(state);
 
-        // Fill bar fully on success — still same line
-        if (!this.silent) renderBar(i + 1, pending.length, issue, 'ok');
+        // Update bar fill + log issue BELOW bar
+        drawBar(i + 1, pending.length);
+        if (!this.silent)
+          process.stdout.write(`  ${c.green}✔${c.reset}  ${c.dim}#${created.number ?? i + 1}${c.reset}  ${issue.title.slice(0, 45)}  ${c.dim}${created.html_url}${c.reset}\n`);
 
       } catch (err) {
-        if (!this.silent) renderBar(i + 1, pending.length, issue, 'fail');
+        drawBar(i + 1, pending.length, `${c.red}failed${c.reset}`);
+        if (!this.silent)
+          process.stdout.write(`  ${c.red}✖${c.reset}  ${issue.title.slice(0, 45)}  ${c.dim}${err.message}${c.reset}\n`);
         results.failed.push({ repo: issue.repo, title: issue.title, error: err.message });
         state.failed.push({ repo: issue.repo, title: issue.title, error: err.message });
         if (config.resumable) this._saveState(state);
@@ -122,15 +154,19 @@ export class IssueCannon {
 
       if (i < pending.length - 1) {
         const delay = this._pickDelay();
-        await countdown(Math.round(delay / 1000), pending.length, i + 1, delay);
+        await liveCountdown(
+          Math.round(delay / 1000),
+          pending.length,
+          i + 1,
+          delay,
+          drawBar
+        );
       }
     }
-    // Done — move past the bar line, print URLs
-    if (!this.silent) {
-      process.stdout.write('\n');
-      results.created.forEach(r => log.success(r.url));
-      if (results.failed.length) results.failed.forEach(r => log.error(`${r.title}: ${r.error}`));
-    }
+
+    // Final bar — 100% full
+    drawBar(pending.length, pending.length, `${c.green}done${c.reset}`);
+    if (!this.silent) process.stdout.write(`\n`);
 
     this._printSummary(results, startTime);
 
@@ -225,28 +261,19 @@ function progressBar(done, total, w = 30) {
   return `${c.green}${'█'.repeat(f)}${c.dim}${'░'.repeat(w - f)}${c.reset}`;
 }
 
-function renderBar(done, total, issue, state, countdown = '', estRemaining = '') {
-  const bar = progressBar(done, total);
-  const icon = state === 'ok' ? `${c.green}✔${c.reset}` : state === 'fail' ? `${c.red}✖${c.reset}` : `${c.yellow}⏳${c.reset}`;
-  const count = `${c.bold}${String(done).padStart(2)}/${total}${c.reset}`;
-  const sleep = countdown ? `  ${c.yellow}next in ${countdown}${c.reset}` : '';
-  const est = estRemaining ? `  ${c.dim}·  done in ~${estRemaining}${c.reset}` : '';
-  process.stdout.write(`\r  issue  ${bar}  ${count}${sleep}${est}   `);
-}
-
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-async function countdown(seconds, total, done, delayMs) {
+async function liveCountdown(seconds, total, done, delayMs, drawBar) {
   for (let s = seconds; s > 0; s--) {
     const mm = String(Math.floor(s / 60)).padStart(2, '0');
     const ss = String(s % 60).padStart(2, '0');
-    const remaining = (total - done) * delayMs;
-    const estLabel = fmtDelay(remaining + s * 1000);
-    // reuse renderBar line — pass countdown + est into same \r line
-    process.stdout.write(`\r  issue  ${c.dim}waiting…${c.reset}  ${c.bold}${done}/${total}${c.reset}  ${c.yellow}next in ${mm}:${ss}${c.reset}  ${c.dim}·  done in ~${estLabel}${c.reset}   `);
+    const est = fmtDelay((total - done) * delayMs + s * 1000);
+    // update bar line with sleep info — issues stay below untouched
+    drawBar(done, total, `${c.yellow}next in ${mm}:${ss}${c.reset}  ${c.dim}·  ~${est} left${c.reset}`);
     await sleep(1000);
   }
-  process.stdout.write('\r' + ' '.repeat(80) + '\r');
+  // clear status text from bar after countdown ends
+  drawBar(done, total);
 }
 
 function fmtDelay(ms) {
