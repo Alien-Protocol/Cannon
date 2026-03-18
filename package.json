@@ -8,7 +8,7 @@
     ".": "./src/index.js"
   },
   "bin": {
-    "cannon": "./bin/cli.js"
+    "cannon": "bin/cli.js"
   },
   "files": [
     "bin/",
@@ -34,7 +34,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Alien-Protocol/Cannon.git"
+    "url": "git+https://github.com/Alien-Protocol/Cannon.git"
   },
   "homepage": "https://github.com/Alien-Protocol/Cannon#readme",
   "bugs": {
