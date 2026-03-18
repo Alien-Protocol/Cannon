@@ -67,7 +67,7 @@ owner/repo,Add dark mode,"Users have requested...",enhancement,v1.1,MED,ui
 **4. Fire**
 
 ```bash
-npx issue-cannon --source csv --file ./issues.csv
+npx @alien-protocol/cannon --source csv --file ./issues.csv
 ```
 
 ---
@@ -90,10 +90,10 @@ The package automatically loads `.env` from your project root.
 ```bash
 # Bash / Zsh
 export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
-npx issue-cannon --source csv --file ./issues.csv
+npx @alien-protocol/cannon --source csv --file ./issues.csv
 
 # One-liner
-GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx npx issue-cannon --source csv --file ./issues.csv
+GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx npx @alien-protocol/cannon --source csv --file ./issues.csv
 ```
 
 ### Option C — CI/CD Secrets (GitHub Actions example)
@@ -106,7 +106,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: npm ci
-      - run: npx issue-cannon --source csv --file ./issues.csv
+      - run: npx @alien-protocol/cannon --source csv --file ./issues.csv
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # or a PAT stored in repo secrets
 ```
@@ -114,7 +114,7 @@ jobs:
 ### Creating a GitHub Personal Access Token (PAT)
 
 1. Go to [github.com/settings/tokens/new](https://github.com/settings/tokens/new)
-2. Give it a name, e.g. `issue-cannon`
+2. Give it a name, e.g. `@alien-protocol/cannon`
 3. Set expiration (recommended: 90 days)
 4. Select scopes:
    - **`repo`** — for private repos
@@ -128,7 +128,7 @@ jobs:
 ## CLI Usage
 
 ```
-Usage: issue-cannon [options]
+Usage: @alien-protocol/cannon [options]
 
 Options:
   -s, --source <type>          Source type: csv | json | pdf | docx | postgres | mysql | sqlite
@@ -149,22 +149,22 @@ Options:
 
 ```bash
 # From a CSV file
-npx issue-cannon --source csv --file ./issues.csv
+npx @alien-protocol/cannon --source csv --file ./issues.csv
 
 # From a JSON file, dry run first
-npx issue-cannon --source json --file ./issues.json --dry-run
+npx @alien-protocol/cannon --source json --file ./issues.json --dry-run
 
 # From PostgreSQL (connection string in .env as POSTGRES_URL)
-npx issue-cannon --source postgres \
+npx @alien-protocol/cannon --source postgres \
   --connection-string "${POSTGRES_URL}" \
   --query "SELECT repo, title, body, labels, milestone FROM backlog WHERE done = false"
 
 # Fixed 2-minute delay instead of random
-npx issue-cannon --source csv --file ./issues.csv \
+npx @alien-protocol/cannon --source csv --file ./issues.csv \
   --delay-mode fixed --delay-fixed 120000
 
 # Fast mode (shorter delays — use with caution)
-npx issue-cannon --source csv --file ./issues.csv \
+npx @alien-protocol/cannon --source csv --file ./issues.csv \
   --delay-min 30000 --delay-max 60000
 ```
 
@@ -245,7 +245,7 @@ owner/repo-web,Update API docs,"New endpoints need docs","documentation,api",v1.
 ```
 
 ```bash
-npx issue-cannon --source csv --file ./issues.csv
+npx @alien-protocol/cannon --source csv --file ./issues.csv
 ```
 
 ---
@@ -268,7 +268,7 @@ An array of issue objects with the same fields as CSV.
 ```
 
 ```bash
-npx issue-cannon --source json --file ./issues.json
+npx @alien-protocol/cannon --source json --file ./issues.json
 ```
 
 ---
@@ -296,7 +296,7 @@ PRIORITY: HIGH
 ```
 
 ```bash
-npx issue-cannon --source pdf --file ./issues.pdf
+npx @alien-protocol/cannon --source pdf --file ./issues.pdf
 ```
 
 ---
@@ -310,7 +310,7 @@ Create a table in your `.docx` file. First row = headers.
 | owner/repo | Fix login bug | Steps to reproduce... | bug,auth | v1.0 |
 
 ```bash
-npx issue-cannon --source docx --file ./issues.docx
+npx @alien-protocol/cannon --source docx --file ./issues.docx
 ```
 
 ---
@@ -323,7 +323,7 @@ POSTGRES_URL=postgres://user:password@localhost:5432/mydb
 ```
 
 ```bash
-npx issue-cannon --source postgres \
+npx @alien-protocol/cannon --source postgres \
   --connection-string "${POSTGRES_URL}" \
   --query "SELECT repo, title, body, labels, milestone FROM backlog WHERE exported = false"
 ```
@@ -421,7 +421,7 @@ GitHub's API will rate-limit or flag you if you create issues too fast. The cann
 
 ```bash
 # Fixed 90-second delay
-npx issue-cannon --source csv --file ./issues.csv \
+npx @alien-protocol/cannon --source csv --file ./issues.csv \
   --delay-mode fixed --delay-fixed 90000
 ```
 
@@ -433,7 +433,7 @@ If the process is interrupted (Ctrl+C, network error, etc.), progress is saved t
 
 ```bash
 # Restart from scratch (ignore saved state)
-npx issue-cannon --source csv --file ./issues.csv --no-resume
+npx @alien-protocol/cannon --source csv --file ./issues.csv --no-resume
 ```
 
 Add `.cannon_state.json` to your `.gitignore`.
@@ -445,7 +445,7 @@ Add `.cannon_state.json` to your `.gitignore`.
 Test your setup without creating any real issues:
 
 ```bash
-npx issue-cannon --source csv --file ./issues.csv --dry-run
+npx @alien-protocol/cannon --source csv --file ./issues.csv --dry-run
 ```
 
 This will:
