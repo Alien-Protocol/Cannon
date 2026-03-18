@@ -96,6 +96,9 @@ export class IssueCannon {
     // Filter out issues for bad repos + already done
     const pending = issues.filter(r => !done.has(r.title) && !badRepos.has(r.repo));
 
+    const results_prefail = [];
+    const results = { created: [], failed: [] };
+
     // Pre-mark bad repo issues as failed immediately
     issues
       .filter(r => badRepos.has(r.repo))
@@ -117,8 +120,6 @@ export class IssueCannon {
     this._log('info', `To create: ${c.bold}${pending.length}${c.reset}  ·  Delay: ${c.yellow}${delayLabel}${c.reset}  ·  Est. total: ${c.yellow}~${estMin > 0 ? estMin + ' min' : Math.round((pending.length * (config.delay.mode === 'fixed' ? config.delay.fixedMs : mid)) / 1000) + 's'}${c.reset}\n`);
     this._log('step', '🚀 Creating issues...\n');
 
-    const results_prefail = [];
-    const results = { created: [], failed: [] };
     const startTime = Date.now();
 
     // ── Live bar setup ─────────────────────────
