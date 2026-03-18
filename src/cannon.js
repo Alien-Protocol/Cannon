@@ -1,10 +1,3 @@
-/**
- * cannon.js — IssueCannon orchestrator
- *
- * const cannon = new IssueCannon(options);
- * await cannon.fire({ source: 'csv', file: './issues.csv' });
- */
-
 import fs from 'fs';
 import path from 'path';
 import { loadConfig } from './config.js';

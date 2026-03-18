@@ -27,8 +27,8 @@ const DEFAULTS = {
     apiVersion: '2022-11-28',
   },
   delay: {
-    minMs: 240_000,      // 4 min
-    maxMs: 480_000,      // 8 min
+    minMs: 60_000,      // 4 min
+    maxMs: 300_000,      // 8 min
     mode: 'random',      // 'random' | 'fixed'
     fixedMs: 300_000,    // used when mode === 'fixed'
   },
