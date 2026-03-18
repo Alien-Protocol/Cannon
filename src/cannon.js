@@ -150,7 +150,8 @@ export class IssueCannon {
   }
 
   _log(level, msg) {
-    if (!this.silent) log[level]?.(msg) ?? console.log(msg);
+    if (this.silent) return;
+    if (log[level]) { log[level](msg); } else { console.log(msg); }
   }
 
   _printSummary(results) {
