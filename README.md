@@ -1,4 +1,4 @@
-# 🔫 @alien-protocol/cannon
+# 🛸 @alien-protocol/cannon
 
 > Bulk-create GitHub issues from **CSV, PDF, DOCX, JSON, or any SQL database** — with randomized rate-limit delays, resume support, and secure token handling.
 
@@ -128,7 +128,7 @@ jobs:
 ## CLI Usage
 
 ```
-Usage: @alien-protocol/cannon [options]
+Usage: cannon [options]
 
 Options:
   -s, --source <type>          Source type: csv | json | pdf | docx | postgres | mysql | sqlite
