@@ -1,15 +1,22 @@
 {
   "name": "@alien-protocol/cannon",
   "version": "1.0.0",
-  "description": "Alien Protocol Cannon is Bulk-create GitHub issues from CSV, PDF, DOCX, or any database — with smart rate-limit delays and secure token handling.",
+  "description": "Bulk-create GitHub issues from CSV, PDF, DOCX, or any database — by Alien Protocol",
   "type": "module",
   "main": "./src/index.js",
   "exports": {
     ".": "./src/index.js"
   },
   "bin": {
-    "issue-cannon": "bin/cli.js"
+    "cannon": "./bin/cli.js"
   },
+  "files": [
+    "bin/",
+    "src/",
+    "README.md",
+    "cannon.config.example.json",
+    ".env.example"
+  ],
   "scripts": {
     "start": "node bin/cli.js"
   },
@@ -20,22 +27,31 @@
     "automation",
     "csv",
     "database",
-    "cli"
+    "cli",
+    "alien-protocol"
   ],
-  "author": "",
+  "author": "Alien Protocol <https://github.com/Alien-Protocol>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Alien-Protocol/Cannon.git"
+  },
+  "homepage": "https://github.com/Alien-Protocol/Cannon#readme",
+  "bugs": {
+    "url": "https://github.com/Alien-Protocol/Cannon/issues"
+  },
   "dependencies": {
-    "chalk": "^5.3.0",
     "commander": "^12.0.0",
-    "conf": "^13.0.0",
     "csv-parse": "^5.5.5",
     "dotenv": "^16.4.5",
-    "mammoth": "^1.7.2",
-    "mysql2": "^3.9.7",
-    "ora": "^8.0.1",
     "pdf-parse": "^1.1.1",
+    "mammoth": "^1.7.2",
     "pg": "^8.11.5",
-    "sql.js": "^1.12.0"
+    "mysql2": "^3.9.7",
+    "sql.js": "^1.12.0",
+    "chalk": "^5.3.0",
+    "ora": "^8.0.1",
+    "conf": "^13.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
