@@ -2,48 +2,40 @@
  * config.js — secure configuration loader
  *
  * Token resolution priority (highest → lowest):
- *   1. Explicit option passed in code: new IssueCannon({ token: '...' })
- *   2. Environment variable:  GITHUB_TOKEN=ghp_xxx
- *   3. .env file in CWD:      GITHUB_TOKEN=ghp_xxx
- *   4. cannon.config.json     { "github": { "token": "ghp_xxx" } }
+ *   1. Explicit option:  new IssueCannon({ token: '...' })
+ *   2. Env var:          GITHUB_TOKEN=ghp_xxx
+ *   3. .env file:        GITHUB_TOKEN=ghp_xxx
+ *   4. OAuth token:      ~/.cannon/credentials.json  ← cannon auth login
+ *   5. Config file:      cannon.config.json → github.token
  *
- * ⚠️  NEVER commit your token to git. Add .env and cannon.config.json to .gitignore.
+ * ⚠️  NEVER commit your token to git.
  */
 
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import { getSavedToken } from './auth.js';
 
 const CWD = process.cwd();
 
-// Load .env from the project calling us (not this package)
 dotenv.config({ path: path.join(CWD, '.env') });
 
-/** Default config — can be overridden by cannon.config.json */
 const DEFAULTS = {
   github: {
-    token: '',           // always prefer env var
+    token: '',
     apiVersion: '2022-11-28',
   },
   delay: {
-    minMs: 60_000,      // 4 min
-    maxMs: 300_000,      // 8 min
-    mode: 'random',      // 'random' | 'fixed'
-    fixedMs: 300_000,    // used when mode === 'fixed'
+    minMs: 60_000,   // 1 min
+    maxMs: 300_000,  // 5 min
+    mode: 'random',
+    fixedMs: 300_000,
   },
   dryRun: false,
-  resumable: true,       // save progress to .cannon_state.json
+  resumable: true,
   stateFile: path.join(CWD, '.cannon_state.json'),
 };
 
-/**
- * Merge cannon.config.json (if present) over defaults,
- * then apply any run-time overrides passed directly.
- *
- * @param {object} overrides  — keys from IssueCannon constructor
- * @returns {object}          — final merged config
- */
 export function loadConfig(overrides = {}) {
   let fileConfig = {};
   const configPath = path.join(CWD, 'cannon.config.json');
@@ -58,11 +50,12 @@ export function loadConfig(overrides = {}) {
 
   const merged = deepMerge(DEFAULTS, fileConfig);
 
-  // Token: explicit override → env var → config file
+  // Token resolution: explicit → env var → .env → OAuth → config file
   const token =
-    overrides.token ||
-    process.env.GITHUB_TOKEN ||
-    merged.github?.token ||
+    overrides.token ||   // 1. passed directly in code
+    process.env.GITHUB_TOKEN || // 2. shell env var or .env file (loaded above)
+    getSavedToken() ||   // 3. ~/.cannon/credentials.json (cannon auth login)
+    merged.github?.token ||   // 4. cannon.config.json
     '';
 
   return {
@@ -75,7 +68,6 @@ export function loadConfig(overrides = {}) {
   };
 }
 
-// ── Helpers ───────────────────────────────────
 function deepMerge(base, override) {
   const result = { ...base };
   for (const key of Object.keys(override ?? {})) {
