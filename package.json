@@ -1,6 +1,6 @@
 {
   "name": "@alien-protocol/cannon",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Bulk-create GitHub issues from CSV, PDF, DOCX, or any database — by Alien Protocol",
   "type": "module",
   "main": "./src/index.js",
