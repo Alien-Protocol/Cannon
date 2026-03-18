@@ -1,0 +1,54 @@
+{
+  "_comment": "Copy this to cannon.config.json in your project. DO NOT commit cannon.config.json if it contains secrets.",
+
+  "github": {
+    "token": "",
+    "_tokenNote": "Leave blank — use GITHUB_TOKEN env var or .env file instead. Never put your token here."
+  },
+
+  "delay": {
+    "mode": "random",
+    "_modeNote": "Options: 'random' (between minMs and maxMs) | 'fixed' (always fixedMs)",
+    "minMs": 240000,
+    "maxMs": 480000,
+    "fixedMs": 300000
+  },
+
+  "dryRun": false,
+  "resumable": true,
+
+  "_sourceExamples": {
+    "csv": {
+      "source": "csv",
+      "file": "./issues.csv"
+    },
+    "json": {
+      "source": "json",
+      "file": "./issues.json"
+    },
+    "pdf": {
+      "source": "pdf",
+      "file": "./issues.pdf",
+      "strategy": "auto"
+    },
+    "docx": {
+      "source": "docx",
+      "file": "./issues.docx"
+    },
+    "postgres": {
+      "source": "postgres",
+      "connectionString": "${POSTGRES_URL}",
+      "query": "SELECT repo, title, body, labels, milestone, priority, track FROM github_backlog WHERE exported = false"
+    },
+    "mysql": {
+      "source": "mysql",
+      "connectionString": "${MYSQL_URL}",
+      "query": "SELECT repo, title, body, labels, milestone FROM issues WHERE status = 'pending'"
+    },
+    "sqlite": {
+      "source": "sqlite",
+      "file": "./backlog.db",
+      "query": "SELECT repo, title, body, labels, milestone FROM issues"
+    }
+  }
+}

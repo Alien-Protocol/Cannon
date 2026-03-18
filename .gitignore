@@ -1,0 +1,8 @@
+node_modules/
+
+# NEVER commit these — they contain secrets
+.env
+cannon.config.json
+
+# Auto-generated progress file
+.cannon_state.json
