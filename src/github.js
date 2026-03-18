@@ -42,8 +42,33 @@ export async function getOrCreateMilestone(repo, milestoneName, token) {
   return (_milestoneCache[key] = created.number);
 }
 
+// ── Duplicate title cache ────────────────────
+// Keyed by "owner/repo" → Set of existing issue titles (lowercase)
+const _existingTitles = {};
+
+async function fetchExistingTitles(repo, token) {
+  if (_existingTitles[repo]) return _existingTitles[repo];
+  const titles = new Set();
+  let page = 1;
+  while (true) {
+    const res = await fetch(
+      `${GITHUB_API}/repos/${repo}/issues?state=all&per_page=100&page=${page}`,
+      { headers: authHeaders(token) }
+    );
+    if (!res.ok) break;
+    const items = await res.json();
+    if (!items.length) break;
+    items.forEach(i => titles.add(i.title.trim().toLowerCase()));
+    if (items.length < 100) break;
+    page++;
+  }
+  _existingTitles[repo] = titles;
+  return titles;
+}
+
 /**
  * Create a single GitHub issue.
+ * Skips if an issue with the same title already exists in the repo.
  * @param {object} issue   — { repo, title, body, labels, milestone }
  * @param {string} token   — GitHub PAT
  * @param {boolean} dryRun — if true, returns a fake response
@@ -51,6 +76,14 @@ export async function getOrCreateMilestone(repo, milestoneName, token) {
 export async function createIssue(issue, token, dryRun = false) {
   const repo = issue.repo?.trim();
   if (!repo) throw new Error(`Issue missing 'repo': "${issue.title}"`);
+
+  // ── Duplicate check ──────────────────────
+  if (!dryRun) {
+    const existing = await fetchExistingTitles(repo, token);
+    if (existing.has(issue.title.trim().toLowerCase())) {
+      throw new Error(`DUPLICATE: issue already exists in ${repo}`);
+    }
+  }
 
   const labels = normLabels(issue.labels);
   const milestoneNumber = await getOrCreateMilestone(repo, issue.milestone, token);

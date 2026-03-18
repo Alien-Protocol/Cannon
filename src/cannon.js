@@ -63,17 +63,29 @@ export class IssueCannon {
       this._log('dim', `${c.blue}${repo}${c.reset}  →  ${n} issue(s)`);
     }
 
-    // Verify token
+    // ── Verify token on each repo — skip bad ones, don't stop ──
     this._log('step', '🔑 Verifying token access...');
+    const badRepos = new Set();
+    const goodRepos = new Set();
     for (const repo of Object.keys(repoMap)) {
       const status = await verifyToken(repo, config.github.token);
       if (status) {
-        const hint =
-          status === 401 ? 'Token invalid/expired. Run: cannon auth login' :
-            status === 404 ? 'Repo not found or missing permissions.' : '';
-        throw new Error(`Cannot access ${repo} (HTTP ${status}). ${hint}`);
+        const reason =
+          status === 401 ? 'token invalid/expired' :
+            status === 404 ? 'repo not found or no permission' :
+              `HTTP ${status}`;
+        log.warn(`Skipping ${c.blue}${repo}${c.reset}  ${c.dim}(${reason})${c.reset}`);
+        badRepos.add(repo);
+      } else {
+        this._log('success', repo);
+        goodRepos.add(repo);
       }
-      this._log('success', repo);
+    }
+
+    if (goodRepos.size === 0) {
+      log.error('No accessible repos found. Check repo names and token permissions.');
+      log.info('Run: cannon auth login   or   set GITHUB_TOKEN in .env');
+      throw new Error('No accessible repos');
     }
 
     // Resume state
@@ -81,7 +93,17 @@ export class IssueCannon {
     const done = new Set(state.completed);
     if (done.size) this._log('warn', `Resuming — ${done.size} already created`);
 
-    const pending = issues.filter(r => !done.has(r.title));
+    // Filter out issues for bad repos + already done
+    const pending = issues.filter(r => !done.has(r.title) && !badRepos.has(r.repo));
+
+    // Pre-mark bad repo issues as failed immediately
+    issues
+      .filter(r => badRepos.has(r.repo))
+      .forEach(r => {
+        const reason = 'repo not found or no permission';
+        results_prefail.push({ repo: r.repo, title: r.title, error: reason });
+        state.failed.push({ repo: r.repo, title: r.title, error: reason });
+      });
     if (!pending.length) {
       this._log('success', 'All issues already created!');
       return { created: [], failed: [] };
@@ -95,6 +117,7 @@ export class IssueCannon {
     this._log('info', `To create: ${c.bold}${pending.length}${c.reset}  ·  Delay: ${c.yellow}${delayLabel}${c.reset}  ·  Est. total: ${c.yellow}~${estMin > 0 ? estMin + ' min' : Math.round((pending.length * (config.delay.mode === 'fixed' ? config.delay.fixedMs : mid)) / 1000) + 's'}${c.reset}\n`);
     this._log('step', '🚀 Creating issues...\n');
 
+    const results_prefail = [];
     const results = { created: [], failed: [] };
     const startTime = Date.now();
 
@@ -168,6 +191,7 @@ export class IssueCannon {
     drawBar(pending.length, pending.length, `${c.green}done${c.reset}`);
     if (!this.silent) process.stdout.write(`\n`);
 
+    results.failed.push(...results_prefail);
     this._printSummary(results, startTime);
 
     if (!results.failed.length && config.resumable) {
@@ -240,11 +264,24 @@ export class IssueCannon {
 
     // ── Failed table ───────────────────────────
     if (results.failed.length) {
-      console.log(`${c.red}${c.bold}  ✖  Failed: ${results.failed.length}${c.reset}\n`);
+      console.log(`${c.red}${c.bold}  ✖  Failed / Skipped: ${results.failed.length}${c.reset}\n`);
+
+      // Shorten error to a clean reason with icon
+      const shortReason = (err = '') => {
+        if (err.startsWith('DUPLICATE:')) return '⟳  already exists';
+        if (err.includes('not found')) return '✕  repo not found';
+        if (err.includes('no permission')) return '✕  no permission';
+        if (err.includes('token invalid')) return '✕  token invalid';
+        if (err.includes('404')) return '✕  not found';
+        if (err.includes('403')) return '✕  forbidden';
+        if (err.includes('401')) return '✕  unauthorized';
+        return err.slice(0, 35);
+      };
+
       boxTable(
-        results.failed.map(r => [r.repo, r.title, r.error || '']),
-        ['Repo', 'Title', 'Error'],
-        [c.blue, c.red, c.dim]
+        results.failed.map(r => [r.repo, r.title, shortReason(r.error)]),
+        ['Repo', 'Title', 'Reason'],
+        [c.blue, c.red, c.yellow]
       );
       console.log('');
     }
