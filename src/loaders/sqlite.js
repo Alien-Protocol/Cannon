@@ -19,9 +19,11 @@ export async function loadSQLite({ file, query }) {
     if (!results.length) return [];
 
     const { columns, values } = results[0];
-    return values.map(row => {
+    return values.map((row) => {
       const obj = {};
-      columns.forEach((col, i) => { obj[col] = row[i] ?? ''; });
+      columns.forEach((col, i) => {
+        obj[col] = row[i] ?? '';
+      });
       return obj;
     });
   } finally {

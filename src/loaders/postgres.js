@@ -4,7 +4,7 @@ const { Client } = pg;
 
 export async function loadPostgres({ connectionString, query, ssl }) {
   if (!connectionString) throw new Error('postgres loader requires `connectionString`');
-  if (!query)            throw new Error('postgres loader requires `query`');
+  if (!query) throw new Error('postgres loader requires `query`');
 
   // Support ${ENV_VAR} interpolation in connectionString
   const connStr = interpolateEnv(connectionString);

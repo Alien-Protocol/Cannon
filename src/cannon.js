@@ -6,9 +6,15 @@ import { createIssue, verifyToken, ensureLabel } from './github.js';
 
 // ── ANSI colours ──────────────────────────────────────────────────
 const c = {
-  reset: '\x1b[0m', bold: '\x1b[1m', dim: '\x1b[2m',
-  green: '\x1b[32m', yellow: '\x1b[33m', red: '\x1b[31m',
-  cyan: '\x1b[36m', magenta: '\x1b[35m', blue: '\x1b[34m',
+  reset: '\x1b[0m',
+  bold: '\x1b[1m',
+  dim: '\x1b[2m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  red: '\x1b[31m',
+  cyan: '\x1b[36m',
+  magenta: '\x1b[35m',
+  blue: '\x1b[34m',
   white: '\x1b[37m',
 };
 
@@ -57,7 +63,7 @@ export class IssueCannon {
       file: config.source?.file,
       query: config.source?.query,
       connectionString: config.source?.connectionString,
-      ...sourceOpts,  // programmatic overrides still win
+      ...sourceOpts, // programmatic overrides still win
     };
 
     // ── Mode banner ───────────────────────────────────────────────
@@ -65,16 +71,25 @@ export class IssueCannon {
       this._log('warn', `${c.yellow}${c.bold}DRY RUN MODE${c.reset} — no issues will be created`);
     }
     if (!config.mode.safeMode && !config.mode.dryRun) {
-      this._log('warn', `${c.red}${c.bold}UNSAFE MODE${c.reset} — issues will fire with NO delays (risk of GitHub spam flag)`);
+      this._log(
+        'warn',
+        `${c.red}${c.bold}UNSAFE MODE${c.reset} — issues will fire with NO delays (risk of GitHub spam flag)`
+      );
     }
 
     // ── Load issues ───────────────────────────────────────────────
     this._log('step', '📦 Loading issues…');
     const issues = await loadIssues(effectiveSource);
     if (!issues.length) throw new Error('No issues loaded from source');
-    this._log('info', `Loaded ${c.bold}${issues.length}${c.reset} issue(s) from ${c.cyan}${effectiveSource.source}${c.reset}`);
+    this._log(
+      'info',
+      `Loaded ${c.bold}${issues.length}${c.reset} issue(s) from ${c.cyan}${effectiveSource.source}${c.reset}`
+    );
 
-    const repoMap = issues.reduce((a, r) => { a[r.repo] = (a[r.repo] || 0) + 1; return a; }, {});
+    const repoMap = issues.reduce((a, r) => {
+      a[r.repo] = (a[r.repo] || 0) + 1;
+      return a;
+    }, {});
     for (const [repo, n] of Object.entries(repoMap)) {
       this._log('dim', `${c.blue}${repo}${c.reset}  →  ${n} issue(s)`);
     }
@@ -88,10 +103,13 @@ export class IssueCannon {
       const status = await verifyToken(repo, config.github.token);
       if (status) {
         const reason =
-          status === 401 ? 'token invalid or expired' :
-            status === 403 ? 'token lacks required scope (need: repo)' :
-              status === 404 ? 'repo not found or no permission' :
-                `HTTP ${status}`;
+          status === 401
+            ? 'token invalid or expired'
+            : status === 403
+              ? 'token lacks required scope (need: repo)'
+              : status === 404
+                ? 'repo not found or no permission'
+                : `HTTP ${status}`;
         log.warn(`Skipping ${c.blue}${repo}${c.reset}  ${c.dim}(${reason})${c.reset}`);
         badRepos.add(repo);
       } else {
@@ -121,13 +139,13 @@ export class IssueCannon {
     const done = new Set(state.completed);
     if (done.size) this._log('warn', `Resuming — ${done.size} issue(s) already created, skipping`);
 
-    const pending = issues.filter(r => !done.has(r.title) && !badRepos.has(r.repo));
+    const pending = issues.filter((r) => !done.has(r.title) && !badRepos.has(r.repo));
 
     // Pre-fail bad-repo issues
     const results_prefail = [];
     issues
-      .filter(r => badRepos.has(r.repo))
-      .forEach(r => {
+      .filter((r) => badRepos.has(r.repo))
+      .forEach((r) => {
         const err = 'repo not found or no permission';
         results_prefail.push({ repo: r.repo, title: r.title, error: err });
         state.failed.push({ repo: r.repo, title: r.title, error: err });
@@ -150,9 +168,10 @@ export class IssueCannon {
       const delayMs = config.delay.mode === 'fixed' ? config.delay.fixedMs : mid;
       const totalMs = pending.length * delayMs;
       estMin = Math.ceil(totalMs / 60_000);
-      const delayStr = config.delay.mode === 'fixed'
-        ? `${fmtDelay(config.delay.fixedMs)} fixed`
-        : `${fmtDelay(config.delay.minMs)}–${fmtDelay(config.delay.maxMs)} random`;
+      const delayStr =
+        config.delay.mode === 'fixed'
+          ? `${fmtDelay(config.delay.fixedMs)} fixed`
+          : `${fmtDelay(config.delay.minMs)}–${fmtDelay(config.delay.maxMs)} random`;
       estLabel = `${c.yellow}${delayStr}${c.reset}  ·  Est. total: ${c.yellow}~${estMin > 0 ? estMin + ' min' : Math.round(totalMs / 1000) + 's'}${c.reset}`;
     }
 
@@ -172,7 +191,9 @@ export class IssueCannon {
       const pct = String(Math.round((done / total) * 100)).padStart(3) + '%';
       const cnt = `${c.bold}${done}/${total}${c.reset}`;
       const stat = status ? `  ${status}` : '';
-      const padding = ' '.repeat(Math.max(0, 30 - (status || '').replace(/\x1b\[[\d;]*m/g, '').length));
+      const padding = ' '.repeat(
+        Math.max(0, 30 - (status || '').replace(/\x1b\[[\d;]*m/g, '').length)
+      );
       process.stdout.write(`\x1b[u\x1b[2K  ${bar}  ${pct}  ${cnt}${stat}${padding}\x1b[1B\r`);
     };
 
@@ -180,11 +201,20 @@ export class IssueCannon {
 
     for (let i = 0; i < pending.length; i++) {
       const issue = pending[i];
-      drawBar(i, pending.length, `${c.yellow}creating…${c.reset}  ${c.dim}${issue.title.slice(0, 35)}${c.reset}`);
+      drawBar(
+        i,
+        pending.length,
+        `${c.yellow}creating…${c.reset}  ${c.dim}${issue.title.slice(0, 35)}${c.reset}`
+      );
 
       try {
         const created = await createIssue(issue, config.github.token, config.mode.dryRun);
-        results.created.push({ repo: issue.repo, title: issue.title, url: created.html_url, number: created.number });
+        results.created.push({
+          repo: issue.repo,
+          title: issue.title,
+          url: created.html_url,
+          number: created.number,
+        });
         state.completed.push(issue.title);
         if (config.mode.resumable) this._saveState(state);
 
@@ -192,15 +222,14 @@ export class IssueCannon {
         if (!this.silent)
           process.stdout.write(
             `\x1b[2K  ${c.green}✔${c.reset}  ${c.dim}#${created.number ?? i + 1}${c.reset}  ` +
-            `${issue.title.slice(0, 48).padEnd(48)}  ${c.dim}${created.html_url}${c.reset}\n`
+              `${issue.title.slice(0, 48).padEnd(48)}  ${c.dim}${created.html_url}${c.reset}\n`
           );
-
       } catch (err) {
         drawBar(i + 1, pending.length, `${c.red}failed${c.reset}`);
         if (!this.silent)
           process.stdout.write(
             `\x1b[2K  ${c.red}✖${c.reset}  ${issue.title.slice(0, 48).padEnd(48)}  ` +
-            `${c.dim}${err.message.startsWith('DUPLICATE') ? 'already exists (skipped)' : err.message.slice(0, 40)}${c.reset}\n`
+              `${c.dim}${err.message.startsWith('DUPLICATE') ? 'already exists (skipped)' : err.message.slice(0, 40)}${c.reset}\n`
           );
         results.failed.push({ repo: issue.repo, title: issue.title, error: err.message });
         state.failed.push({ repo: issue.repo, title: issue.title, error: err.message });
@@ -209,11 +238,11 @@ export class IssueCannon {
 
       // ── Delay between issues ──────────────────────────────────
       if (i < pending.length - 1) {
-        if (safeMode) {
+        // Never sleep during a dry run / preview — it's pointless
+        if (safeMode && !config.mode.dryRun) {
           const delay = this._pickDelay();
           await liveCountdown(Math.round(delay / 1000), pending.length, i + 1, delay, drawBar);
         }
-        // unsafe mode: no delay at all
       }
     }
 
@@ -240,7 +269,9 @@ export class IssueCannon {
 
     // Clean up state if everything succeeded
     if (!results.failed.length && config.mode.resumable) {
-      try { fs.unlinkSync(config.stateFile); } catch { }
+      try {
+        fs.unlinkSync(config.stateFile);
+      } catch {}
     }
 
     return results;
@@ -258,7 +289,7 @@ export class IssueCannon {
     try {
       if (fs.existsSync(this.config.stateFile))
         return JSON.parse(fs.readFileSync(this.config.stateFile, 'utf-8'));
-    } catch { }
+    } catch {}
     return { completed: [], failed: [] };
   }
 
@@ -268,7 +299,11 @@ export class IssueCannon {
 
   _log(level, msg) {
     if (this.silent) return;
-    if (log[level]) { log[level](msg); } else { console.log(msg); }
+    if (log[level]) {
+      log[level](msg);
+    } else {
+      console.log(msg);
+    }
   }
 
   _printSummary(results, startTime) {
@@ -278,16 +313,28 @@ export class IssueCannon {
 
     const boxTable = (rows, headers, colors) => {
       const colW = headers.map((h, i) =>
-        Math.min(50, Math.max(h.length, ...rows.map(r => String(r[i] || '').length)))
+        Math.min(50, Math.max(h.length, ...rows.map((r) => String(r[i] || '').length)))
       );
-      const line = (l, m, r) => `  ${l}${colW.map(w => '─'.repeat(w + 2)).join(m)}${r}`;
+      const line = (l, m, r) => `  ${l}${colW.map((w) => '─'.repeat(w + 2)).join(m)}${r}`;
       const fmtRow = (vals, rowColors) =>
-        `  │${vals.map((v, i) => ` ${rowColors?.[i] || ''}${String(v || '').slice(0, colW[i]).padEnd(colW[i])}${c.reset} `).join('│')}│`;
+        `  │${vals
+          .map(
+            (v, i) =>
+              ` ${rowColors?.[i] || ''}${String(v || '')
+                .slice(0, colW[i])
+                .padEnd(colW[i])}${c.reset} `
+          )
+          .join('│')}│`;
 
       console.log(`${c.dim}${line('┌', '┬', '┐')}${c.reset}`);
-      console.log(`${c.dim}${fmtRow(headers, headers.map(() => c.dim + c.bold))}${c.reset}`);
+      console.log(
+        `${c.dim}${fmtRow(
+          headers,
+          headers.map(() => c.dim + c.bold)
+        )}${c.reset}`
+      );
       console.log(`${c.dim}${line('├', '┼', '┤')}${c.reset}`);
-      rows.forEach(r => console.log(`${c.dim}${fmtRow(r, colors)}${c.reset}`));
+      rows.forEach((r) => console.log(`${c.dim}${fmtRow(r, colors)}${c.reset}`));
       console.log(`${c.dim}${line('└', '┴', '┘')}${c.reset}`);
     };
 
@@ -315,7 +362,7 @@ export class IssueCannon {
         return err.slice(0, 40);
       };
       boxTable(
-        results.failed.map(r => [r.repo, r.title, shortReason(r.error)]),
+        results.failed.map((r) => [r.repo, r.title, shortReason(r.error)]),
         ['Repo', 'Title', 'Reason'],
         [c.blue, c.red, c.yellow]
       );
@@ -325,16 +372,16 @@ export class IssueCannon {
     const total = results.created.length + results.failed.length;
     console.log(
       `  ${c.dim}Total: ${total}  ·  ` +
-      `Created: ${c.green}${results.created.length}${c.reset}${c.dim}  ·  ` +
-      `Failed: ${c.red}${results.failed.length}${c.reset}${c.dim}  ·  ` +
-      `Time: ${c.yellow}${elapsed}${c.reset}\n`
+        `Created: ${c.green}${results.created.length}${c.reset}${c.dim}  ·  ` +
+        `Failed: ${c.red}${results.failed.length}${c.reset}${c.dim}  ·  ` +
+        `Time: ${c.yellow}${elapsed}${c.reset}\n`
     );
   }
 }
 
 // ── Utilities ──────────────────────────────────────────────────────
 
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function liveCountdown(seconds, total, done, delayMs, drawBar) {
   for (let s = seconds; s > 0; s--) {

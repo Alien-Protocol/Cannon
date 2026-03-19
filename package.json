@@ -1,6 +1,6 @@
 {
   "name": "@alien-protocol/cannon",
-  "version": "2.0.8",
+  "version": "2.1.0",
   "description": "Bulk-create GitHub issues from CSV, PDF, DOCX, JSON or any database — with OAuth login — by Alien Protocol",
   "type": "module",
   "main": "./src/index.js",
@@ -18,7 +18,9 @@
     ".env.example"
   ],
   "scripts": {
-    "start": "node bin/cli.js"
+    "start": "node bin/cli.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "keywords": [
     "github",
@@ -55,5 +57,8 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.1"
   }
 }

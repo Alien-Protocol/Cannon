@@ -11,8 +11,8 @@ export async function loadPDF({ file, strategy = 'auto' }) {
 
   if (strategy === 'auto') {
     // Heuristic: if most non-empty lines contain | or \t → table
-    const lines = text.split('\n').filter(l => l.trim());
-    const delimited = lines.filter(l => l.includes('|') || l.includes('\t'));
+    const lines = text.split('\n').filter((l) => l.trim());
+    const delimited = lines.filter((l) => l.includes('|') || l.includes('\t'));
     strategy = delimited.length > lines.length * 0.4 ? 'table' : 'text';
   }
 
@@ -21,32 +21,42 @@ export async function loadPDF({ file, strategy = 'auto' }) {
 }
 
 function parseTablePDF(text) {
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const lines = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
   const sep = lines[0].includes('|') ? '|' : '\t';
-  const headers = lines[0].split(sep).map(h => h.trim().toLowerCase());
-  return lines.slice(1).map(line => {
-    const cols = line.split(sep).map(c => c.trim());
-    const obj = {};
-    headers.forEach((h, i) => { obj[h] = cols[i] ?? ''; });
-    return obj;
-  }).filter(r => r.title);
+  const headers = lines[0].split(sep).map((h) => h.trim().toLowerCase());
+  return lines
+    .slice(1)
+    .map((line) => {
+      const cols = line.split(sep).map((c) => c.trim());
+      const obj = {};
+      headers.forEach((h, i) => {
+        obj[h] = cols[i] ?? '';
+      });
+      return obj;
+    })
+    .filter((r) => r.title);
 }
 
 function parseTextPDF(text) {
   const blocks = text.split(/\n{2,}/);
-  return blocks.map(block => {
-    const get = (key) => {
-      const match = block.match(new RegExp(`^${key}:(.*)`, 'im'));
-      return match ? match[1].trim() : '';
-    };
-    return {
-      repo:      get('REPO'),
-      title:     get('TITLE'),
-      body:      get('BODY'),
-      labels:    get('LABELS'),
-      milestone: get('MILESTONE'),
-      priority:  get('PRIORITY'),
-      track:     get('TRACK'),
-    };
-  }).filter(r => r.repo && r.title);
+  return blocks
+    .map((block) => {
+      const get = (key) => {
+        const match = block.match(new RegExp(`^${key}:(.*)`, 'im'));
+        return match ? match[1].trim() : '';
+      };
+      return {
+        repo: get('REPO'),
+        title: get('TITLE'),
+        body: get('BODY'),
+        labels: get('LABELS'),
+        milestone: get('MILESTONE'),
+        priority: get('PRIORITY'),
+        track: get('TRACK'),
+      };
+    })
+    .filter((r) => r.repo && r.title);
 }

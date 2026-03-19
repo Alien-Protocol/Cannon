@@ -110,24 +110,24 @@ After running `cannon init`, open `cannon.config.json`. Every setting has an inl
 
 ### All Config Options
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `source.type` | string | `"csv"` | Where to load issues from. Options: `csv`, `json`, `pdf`, `docx`, `postgres`, `mysql`, `sqlite` |
-| `source.file` | string | `""` | Path to your issues file (csv / json / pdf / docx / sqlite) |
-| `source.query` | string | `""` | SQL query for database sources |
-| `source.connectionString` | string | `""` | DB connection URL. Use `${ENV_VAR}` — never hardcode secrets |
-| `mode.dryRun` | boolean | `false` | Preview only — nothing is created |
-| `mode.safeMode` | boolean | `true` | Add random delays between issues (recommended) |
-| `mode.resumable` | boolean | `true` | Save progress so you can stop and restart |
-| `delay.mode` | string | `"random"` | `random` = between min/max \| `fixed` = always fixedMs |
-| `delay.minMs` | number | `240000` | Minimum random delay (4 min). Do not go below 60000 |
-| `delay.maxMs` | number | `480000` | Maximum random delay (8 min) |
-| `delay.fixedMs` | number | `300000` | Delay when mode is `fixed` (5 min) |
-| `labels.autoCreate` | boolean | `false` | Auto-create missing labels in GitHub |
-| `labels.colorMap` | object | `{}` | Map label names → hex colors for auto-creation |
-| `output.logFile` | string | `""` | Write a JSON results log to this path |
-| `output.showTable` | boolean | `true` | Show a summary table after completion |
-| `github.token` | string | `""` | **Leave blank** — use OAuth or `GITHUB_TOKEN` env var instead |
+| Key                       | Type    | Default    | Description                                                                                     |
+| ------------------------- | ------- | ---------- | ----------------------------------------------------------------------------------------------- |
+| `source.type`             | string  | `"csv"`    | Where to load issues from. Options: `csv`, `json`, `pdf`, `docx`, `postgres`, `mysql`, `sqlite` |
+| `source.file`             | string  | `""`       | Path to your issues file (csv / json / pdf / docx / sqlite)                                     |
+| `source.query`            | string  | `""`       | SQL query for database sources                                                                  |
+| `source.connectionString` | string  | `""`       | DB connection URL. Use `${ENV_VAR}` — never hardcode secrets                                    |
+| `mode.dryRun`             | boolean | `false`    | Preview only — nothing is created                                                               |
+| `mode.safeMode`           | boolean | `true`     | Add random delays between issues (recommended)                                                  |
+| `mode.resumable`          | boolean | `true`     | Save progress so you can stop and restart                                                       |
+| `delay.mode`              | string  | `"random"` | `random` = between min/max \| `fixed` = always fixedMs                                          |
+| `delay.minMs`             | number  | `240000`   | Minimum random delay (4 min). Do not go below 60000                                             |
+| `delay.maxMs`             | number  | `480000`   | Maximum random delay (8 min)                                                                    |
+| `delay.fixedMs`           | number  | `300000`   | Delay when mode is `fixed` (5 min)                                                              |
+| `labels.autoCreate`       | boolean | `false`    | Auto-create missing labels in GitHub                                                            |
+| `labels.colorMap`         | object  | `{}`       | Map label names → hex colors for auto-creation                                                  |
+| `output.logFile`          | string  | `""`       | Write a JSON results log to this path                                                           |
+| `output.showTable`        | boolean | `true`     | Show a summary table after completion                                                           |
+| `github.token`            | string  | `""`       | **Leave blank** — use OAuth or `GITHUB_TOKEN` env var instead                                   |
 
 > **Tip:** All `_note` keys in the file are comments and are ignored by cannon.
 
@@ -157,6 +157,7 @@ cannon auth logout    # Remove saved credentials
 ```
 
 How it works:
+
 1. Cannon asks GitHub for a device code
 2. You open `github.com/login/device` and enter the displayed code
 3. GitHub sends a token back to cannon
@@ -175,6 +176,7 @@ cannon validate
 ```
 
 Checks:
+
 - `cannon.config.json` exists and is valid JSON
 - GitHub token is present
 - Source file exists (for file-based sources)
@@ -215,12 +217,12 @@ All flags are **optional** — if omitted, the value comes from `cannon.config.j
 
 ## Safe Mode vs Unsafe Mode
 
-| | Safe Mode (`safeMode: true`) | Unsafe Mode (`safeMode: false`) |
-|---|---|---|
-| **Delays** | Random delays between issues | No delays |
-| **GitHub spam risk** | Low | High — may get your token flagged |
-| **Estimated time** | Longer | Near-instant |
-| **Recommended for** | All production use | Local testing only |
+|                      | Safe Mode (`safeMode: true`) | Unsafe Mode (`safeMode: false`)   |
+| -------------------- | ---------------------------- | --------------------------------- |
+| **Delays**           | Random delays between issues | No delays                         |
+| **GitHub spam risk** | Low                          | High — may get your token flagged |
+| **Estimated time**   | Longer                       | Near-instant                      |
+| **Recommended for**  | All production use           | Local testing only                |
 
 **Safe mode is on by default.** Always use it when creating more than ~5 issues.
 
@@ -257,10 +259,10 @@ cannon fire --delay-mode fixed --delay-fixed 90000
 
 Cannon only needs **one scope**. Choose the minimum that covers your repos:
 
-| Scope | Use when |
-|-------|----------|
+| Scope         | Use when                                                    |
+| ------------- | ----------------------------------------------------------- |
 | `public_repo` | All your target repos are **public** — use this, it's safer |
-| `repo` | Any of your target repos are **private** |
+| `repo`        | Any of your target repos are **private**                    |
 
 > **Fine-grained PATs (recommended):** Grant only `Issues: Read & Write` and `Metadata: Read` on specific repos. This limits blast radius if the token is ever leaked.
 
@@ -296,15 +298,15 @@ Cannon looks for a token in this order — the first one found is used:
 
 Every source must provide these fields per issue:
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `repo` | ✅ | Full repo: `owner/repo` |
-| `title` | ✅ | Issue title |
-| `body` | — | Issue description |
-| `labels` | — | Comma-separated label names |
-| `milestone` | — | Milestone title (auto-created if missing) |
-| `priority` | — | Informational: `HIGH`, `MED`, `LOW` |
-| `track` | — | Informational: e.g. `auth`, `ui`, `docs` |
+| Field       | Required | Description                               |
+| ----------- | -------- | ----------------------------------------- |
+| `repo`      | ✅       | Full repo: `owner/repo`                   |
+| `title`     | ✅       | Issue title                               |
+| `body`      | —        | Issue description                         |
+| `labels`    | —        | Comma-separated label names               |
+| `milestone` | —        | Milestone title (auto-created if missing) |
+| `priority`  | —        | Informational: `HIGH`, `MED`, `LOW`       |
+| `track`     | —        | Informational: e.g. `auth`, `ui`, `docs`  |
 
 ### CSV
 
@@ -315,6 +317,7 @@ owner/repo,Add dark mode,"User request",enhancement,v1.1,MED,ui
 ```
 
 Config:
+
 ```json
 "source": { "type": "csv", "file": "./issues.csv" }
 ```
@@ -334,6 +337,7 @@ Config:
 ```
 
 Config:
+
 ```json
 "source": { "type": "json", "file": "./issues.json" }
 ```
@@ -343,6 +347,7 @@ Config:
 Two layouts are auto-detected:
 
 **Block layout** (one issue per paragraph):
+
 ```
 REPO: owner/repo
 TITLE: Fix login bug
@@ -352,12 +357,14 @@ MILESTONE: v1.0
 ```
 
 **Table layout** (pipe or tab separated):
+
 ```
 repo        | title         | body   | labels
 owner/repo  | Fix login bug | Steps  | bug,auth
 ```
 
 Config:
+
 ```json
 "source": { "type": "pdf", "file": "./issues.pdf" }
 ```
@@ -366,11 +373,12 @@ Config:
 
 Create a table in your `.docx`. First row = headers.
 
-| repo | title | body | labels | milestone |
-|------|-------|------|--------|-----------|
-| owner/repo | Fix login bug | Steps... | bug,auth | v1.0 |
+| repo       | title         | body     | labels   | milestone |
+| ---------- | ------------- | -------- | -------- | --------- |
+| owner/repo | Fix login bug | Steps... | bug,auth | v1.0      |
 
 Config:
+
 ```json
 "source": { "type": "docx", "file": "./issues.docx" }
 ```
@@ -383,6 +391,7 @@ POSTGRES_URL=postgres://user:password@localhost:5432/mydb
 ```
 
 Config:
+
 ```json
 "source": {
   "type": "postgres",
@@ -394,6 +403,7 @@ Config:
 ### MySQL
 
 Config:
+
 ```json
 "source": {
   "type": "mysql",
@@ -405,6 +415,7 @@ Config:
 ### SQLite
 
 Config:
+
 ```json
 "source": {
   "type": "sqlite",
@@ -424,14 +435,14 @@ const cannon = new IssueCannon({
   // All settings from cannon.config.json are loaded automatically.
   // Pass overrides here only when needed:
   safeMode: true,
-  dryRun:   false,
+  dryRun: false,
 });
 
 // Source is read from cannon.config.json by default.
 // Pass sourceOpts to override:
 const { created, failed } = await cannon.fire({
   source: 'csv',
-  file:   './issues.csv',
+  file: './issues.csv',
 });
 
 console.log(`Created: ${created.length}, Failed: ${failed.length}`);
@@ -463,33 +474,43 @@ console.log(`Created: ${created.length}, Failed: ${failed.length}`);
 Here are improvements that would significantly enhance the user experience:
 
 ### 🏷️ Label Auto-Creation with Color Presets
+
 Already partially implemented via `labels.autoCreate` + `labels.colorMap`. Could be extended with a built-in library of common label color presets (GitHub's default label palette) so users don't need to look up hex codes.
 
 ### 📋 Issue Templates
+
 Allow `cannon.config.json` to define a `bodyTemplate` string with `{{variables}}` that gets merged per-issue. Useful when all issues share a common structure (e.g., bug report format, feature request format).
 
 ### 🔔 Webhook / Notification on Completion
+
 Add an `output.webhookUrl` option to POST a JSON summary to a Slack/Discord/Teams webhook when the batch finishes. Critical for long-running batches where you walk away.
 
 ### 📊 Progress Dashboard (Web UI)
+
 A `cannon serve` command that opens a local browser dashboard showing real-time progress, a live feed of created issues, and a retry button for failed ones.
 
 ### 🔁 Retry Failed Issues
+
 After a run, `cannon retry` could re-read `.cannon_state.json` and retry only the failed issues — no need to re-run the whole batch.
 
 ### 🏷️ Milestone Auto-Archive
+
 Option to automatically close milestones after all their issues are created: `milestones.autoClose: true`.
 
 ### 🔍 Duplicate Detection Modes
+
 Currently duplicates are detected by exact title match. Options could include: `fuzzy` (Levenshtein distance), `exact` (current), `none` (always create).
 
 ### 📤 Export Created Issues
+
 After a run, export a CSV/JSON of all created issues with their GitHub URLs — useful for tracking and sharing with your team.
 
 ### 🤖 AI-Powered Issue Enhancement
+
 Integrate the Anthropic API to automatically improve issue titles and bodies for clarity before creating them. Opt-in via `ai.enhance: true`.
 
 ### 🔐 GitHub App Authentication
+
 Support GitHub Apps (not just PATs/OAuth) for organization-wide deployments where individual user tokens aren't appropriate.
 
 ---

@@ -10,27 +10,61 @@ export async function loadCSV({ file }) {
 // RFC-4180 CSV parser (handles quoted multi-line fields)
 export function parseCSV(raw) {
   const rows = [];
-  let field = '', inQuotes = false, fields = [], i = 0;
+  let field = '',
+    inQuotes = false,
+    fields = [],
+    i = 0;
   while (i < raw.length) {
-    const ch = raw[i], next = raw[i + 1];
+    const ch = raw[i],
+      next = raw[i + 1];
     if (inQuotes) {
-      if (ch === '"' && next === '"') { field += '"'; i += 2; }
-      else if (ch === '"') { inQuotes = false; i++; }
-      else { field += ch; i++; }
+      if (ch === '"' && next === '"') {
+        field += '"';
+        i += 2;
+      } else if (ch === '"') {
+        inQuotes = false;
+        i++;
+      } else {
+        field += ch;
+        i++;
+      }
     } else {
-      if (ch === '"') { inQuotes = true; i++; }
-      else if (ch === ',') { fields.push(field); field = ''; i++; }
-      else if (ch === '\r' && next === '\n') { fields.push(field); rows.push(fields); fields = []; field = ''; i += 2; }
-      else if (ch === '\n') { fields.push(field); rows.push(fields); fields = []; field = ''; i++; }
-      else { field += ch; i++; }
+      if (ch === '"') {
+        inQuotes = true;
+        i++;
+      } else if (ch === ',') {
+        fields.push(field);
+        field = '';
+        i++;
+      } else if (ch === '\r' && next === '\n') {
+        fields.push(field);
+        rows.push(fields);
+        fields = [];
+        field = '';
+        i += 2;
+      } else if (ch === '\n') {
+        fields.push(field);
+        rows.push(fields);
+        fields = [];
+        field = '';
+        i++;
+      } else {
+        field += ch;
+        i++;
+      }
     }
   }
-  if (field || fields.length) { fields.push(field); if (fields.some(f => f !== '')) rows.push(fields); }
+  if (field || fields.length) {
+    fields.push(field);
+    if (fields.some((f) => f !== '')) rows.push(fields);
+  }
   if (rows.length < 2) return [];
-  const headers = rows[0].map(h => h.trim());
-  return rows.slice(1).map(row => {
+  const headers = rows[0].map((h) => h.trim());
+  return rows.slice(1).map((row) => {
     const obj = {};
-    headers.forEach((h, idx) => { obj[h] = (row[idx] ?? '').trim(); });
+    headers.forEach((h, idx) => {
+      obj[h] = (row[idx] ?? '').trim();
+    });
     return obj;
   });
 }

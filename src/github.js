@@ -14,10 +14,9 @@ export async function getOrCreateMilestone(repo, milestoneName, token) {
   const key = `${repo}::${milestoneName}`;
   if (_milestoneCache[key] !== undefined) return _milestoneCache[key];
 
-  const listRes = await fetch(
-    `${GITHUB_API}/repos/${repo}/milestones?state=all&per_page=50`,
-    { headers: authHeaders(token) }
-  );
+  const listRes = await fetch(`${GITHUB_API}/repos/${repo}/milestones?state=all&per_page=50`, {
+    headers: authHeaders(token),
+  });
   if (!listRes.ok) return (_milestoneCache[key] = null);
 
   const milestones = await listRes.json();
@@ -51,13 +50,12 @@ export async function ensureLabel(repo, name, color, token) {
   if (_labelCache[key]) return;
 
   // Check existing labels
-  const listRes = await fetch(
-    `${GITHUB_API}/repos/${repo}/labels?per_page=100`,
-    { headers: authHeaders(token) }
-  );
+  const listRes = await fetch(`${GITHUB_API}/repos/${repo}/labels?per_page=100`, {
+    headers: authHeaders(token),
+  });
   if (listRes.ok) {
     const labels = await listRes.json();
-    if (labels.find(l => l.name === name)) {
+    if (labels.find((l) => l.name === name)) {
       _labelCache[key] = true;
       return;
     }
@@ -86,7 +84,7 @@ async function fetchExistingTitles(repo, token) {
     if (!res.ok) break;
     const items = await res.json();
     if (!items.length) break;
-    items.forEach(i => titles.add(i.title.trim().toLowerCase()));
+    items.forEach((i) => titles.add(i.title.trim().toLowerCase()));
     if (items.length < 100) break;
     page++;
   }
@@ -135,11 +133,12 @@ export async function createIssue(issue, token, dryRun = false) {
 
   if (!res.ok) {
     const text = await res.text();
-    const hint = res.status === 403
-      ? ' — check token has "repo" or "public_repo" scope'
-      : res.status === 401
-        ? ' — token invalid or expired; run: cannon auth login'
-        : '';
+    const hint =
+      res.status === 403
+        ? ' — check token has "repo" or "public_repo" scope'
+        : res.status === 401
+          ? ' — token invalid or expired; run: cannon auth login'
+          : '';
     throw new Error(`GitHub ${res.status} on ${repo}${hint}: ${text}`);
   }
 
@@ -149,7 +148,6 @@ export async function createIssue(issue, token, dryRun = false) {
   }
   return created;
 }
-
 
 function authHeaders(token) {
   return {
@@ -162,5 +160,8 @@ function authHeaders(token) {
 function normLabels(raw) {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw.map((l) => l.trim()).filter(Boolean);
-  return raw.split(',').map((l) => l.trim()).filter(Boolean);
+  return raw
+    .split(',')
+    .map((l) => l.trim())
+    .filter(Boolean);
 }

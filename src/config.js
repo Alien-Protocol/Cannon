@@ -5,8 +5,10 @@ import { getSavedToken } from './auth.js';
 
 const CWD = process.cwd();
 
+// Load .env from project root
 dotenv.config({ path: path.join(CWD, '.env') });
 
+// ── Defaults (mirrors cannon.config.json structure) ──────────────
 const DEFAULTS = {
   github: {
     token: '',
@@ -25,8 +27,8 @@ const DEFAULTS = {
   },
   delay: {
     mode: 'random',
-    minMs: 240_000,   // 4 min
-    maxMs: 480_000,   // 8 min
+    minMs: 240_000, // 4 min
+    maxMs: 480_000, // 8 min
     fixedMs: 300_000, // 5 min
   },
   labels: {
@@ -40,6 +42,16 @@ const DEFAULTS = {
   stateFile: path.join(CWD, '.cannon_state.json'),
 };
 
+/**
+ * Load config from cannon.config.json, merge with defaults,
+ * then apply any programmatic overrides passed in.
+ *
+ * Token resolution order:
+ *   1. overrides.token (programmatic / code)
+ *   2. GITHUB_TOKEN shell env var (or .env file)
+ *   3. ~/.cannon/credentials.json (cannon auth login OAuth)
+ *   4. cannon.config.json github.token (not recommended)
+ */
 export function loadConfig(overrides = {}) {
   let fileConfig = {};
   const configPath = path.join(CWD, 'cannon.config.json');
@@ -57,13 +69,17 @@ export function loadConfig(overrides = {}) {
   const cleaned = stripComments(fileConfig);
   const merged = deepMerge(DEFAULTS, cleaned);
 
+  // Support new simple format: delay.min / delay.max in MINUTES
+  // Convert to ms so the rest of the codebase stays unchanged
+  if (cleaned.delay?.min !== undefined && cleaned.delay?.fixedMs === undefined) {
+    merged.delay.minMs = Math.round((cleaned.delay.min ?? 4) * 60_000);
+    merged.delay.maxMs = Math.round((cleaned.delay.max ?? 8) * 60_000);
+    merged.delay.mode = 'random';
+  }
+
   // Token priority chain
   const token =
-    overrides.token ||
-    process.env.GITHUB_TOKEN ||
-    getSavedToken() ||
-    merged.github?.token ||
-    '';
+    overrides.token || process.env.GITHUB_TOKEN || getSavedToken() || merged.github?.token || '';
 
   // Programmatic overrides win over file config for simple fields
   const mode = {
@@ -74,9 +90,7 @@ export function loadConfig(overrides = {}) {
   };
 
   // Allow old-style `delay` override object to still work
-  const delay = overrides.delay
-    ? { ...merged.delay, ...overrides.delay }
-    : merged.delay;
+  const delay = overrides.delay ? { ...merged.delay, ...overrides.delay } : merged.delay;
 
   return {
     ...merged,
