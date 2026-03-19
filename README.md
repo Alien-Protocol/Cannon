@@ -1,8 +1,8 @@
 # 🛸 @alien-protocol/cannon
 
-> Bulk-create GitHub issues from **CSV, PDF, DOCX, JSON, or any SQL database** — with randomized rate-limit delays, resume support, and secure token handling.
+> Bulk-create GitHub issues from **CSV, PDF, DOCX, JSON, or any SQL database** — with a single config file, safe-mode delays, duplicate detection, resume support, and secure token handling.
 
-```
+```bash
 npm install @alien-protocol/cannon
 ```
 
@@ -10,19 +10,21 @@ npm install @alien-protocol/cannon
 
 ## Table of Contents
 
-- [🔫 @alien-protocol/cannon](#-alien-protocolcannon)
+- [🛸 @alien-protocol/cannon](#-alien-protocolcannon)
   - [Table of Contents](#table-of-contents)
-  - [Quick Start](#quick-start)
-  - [Secure Token Setup](#secure-token-setup)
-    - [Option A — `.env` file (recommended for local dev)](#option-a--env-file-recommended-for-local-dev)
-    - [Option B — Shell environment variable (recommended for CI/CD)](#option-b--shell-environment-variable-recommended-for-cicd)
-    - [Option C — CI/CD Secrets (GitHub Actions example)](#option-c--cicd-secrets-github-actions-example)
-    - [Creating a GitHub Personal Access Token (PAT)](#creating-a-github-personal-access-token-pat)
-  - [CLI Usage](#cli-usage)
-    - [CLI Examples](#cli-examples)
-  - [Programmatic Usage](#programmatic-usage)
-    - [Programmatic — from a database](#programmatic--from-a-database)
-    - [Programmatic — from a raw array](#programmatic--from-a-raw-array)
+  - [Quick Start (4 steps)](#quick-start-4-steps)
+  - [The Config File](#the-config-file)
+    - [All Config Options](#all-config-options)
+  - [Commands](#commands)
+    - [cannon init](#cannon-init)
+    - [cannon auth](#cannon-auth)
+    - [cannon validate](#cannon-validate)
+    - [cannon fire](#cannon-fire)
+  - [Safe Mode vs Unsafe Mode](#safe-mode-vs-unsafe-mode)
+  - [Token Security](#token-security)
+    - [Required Scopes](#required-scopes)
+    - [How the Token is Stored](#how-the-token-is-stored)
+    - [Token Resolution Order](#token-resolution-order)
   - [Issue Data Sources](#issue-data-sources)
     - [CSV](#csv)
     - [JSON](#json)
@@ -31,141 +33,384 @@ npm install @alien-protocol/cannon
     - [PostgreSQL](#postgresql)
     - [MySQL](#mysql)
     - [SQLite](#sqlite)
-  - [Configuration Reference](#configuration-reference)
-  - [Delay / Rate Limiting](#delay--rate-limiting)
-  - [Resume Support](#resume-support)
-  - [Dry Run Mode](#dry-run-mode)
-  - [Required Issue Fields](#required-issue-fields)
+  - [Programmatic Usage](#programmatic-usage)
   - [Security Best Practices](#security-best-practices)
+  - [Suggested Features (Roadmap)](#suggested-features-roadmap)
+    - [🏷️ Label Auto-Creation with Color Presets](#️-label-auto-creation-with-color-presets)
+    - [📋 Issue Templates](#-issue-templates)
+    - [🔔 Webhook / Notification on Completion](#-webhook--notification-on-completion)
+    - [📊 Progress Dashboard (Web UI)](#-progress-dashboard-web-ui)
+    - [🔁 Retry Failed Issues](#-retry-failed-issues)
+    - [🏷️ Milestone Auto-Archive](#️-milestone-auto-archive)
+    - [🔍 Duplicate Detection Modes](#-duplicate-detection-modes)
+    - [📤 Export Created Issues](#-export-created-issues)
+    - [🤖 AI-Powered Issue Enhancement](#-ai-powered-issue-enhancement)
+    - [🔐 GitHub App Authentication](#-github-app-authentication)
   - [License](#license)
 
 ---
 
-## Quick Start
-
-**1. Install**
+## Quick Start (4 steps)
 
 ```bash
-npm install @alien-protocol/cannon
+# 1. Create your config file with all default settings
+npx @alien-protocol/cannon init
+
+# 2. Login with GitHub — no token or .env file needed
+npx @alien-protocol/cannon auth login
+
+# 3. Edit cannon.config.json to point at your issues file, then preview:
+npx @alien-protocol/cannon fire --dry-run
+
+# 4. Create issues for real:
+npx @alien-protocol/cannon fire
 ```
 
-**2. Set your GitHub token securely**
+That's it. Everything is configured from **one file**: `cannon.config.json`.
+
+---
+
+## The Config File
+
+After running `cannon init`, open `cannon.config.json`. Every setting has an inline `_note` to explain it — no docs needed.
+
+```json
+{
+  "source": {
+    "type": "csv",
+    "file": "./issues.csv"
+  },
+
+  "mode": {
+    "dryRun": false,
+    "safeMode": true,
+    "resumable": true
+  },
+
+  "delay": {
+    "mode": "random",
+    "minMs": 240000,
+    "maxMs": 480000
+  },
+
+  "labels": {
+    "autoCreate": false,
+    "colorMap": {
+      "bug": "ee0701",
+      "enhancement": "0075ca"
+    }
+  },
+
+  "output": {
+    "logFile": "./cannon-log.json",
+    "showTable": true
+  }
+}
+```
+
+### All Config Options
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `source.type` | string | `"csv"` | Where to load issues from. Options: `csv`, `json`, `pdf`, `docx`, `postgres`, `mysql`, `sqlite` |
+| `source.file` | string | `""` | Path to your issues file (csv / json / pdf / docx / sqlite) |
+| `source.query` | string | `""` | SQL query for database sources |
+| `source.connectionString` | string | `""` | DB connection URL. Use `${ENV_VAR}` — never hardcode secrets |
+| `mode.dryRun` | boolean | `false` | Preview only — nothing is created |
+| `mode.safeMode` | boolean | `true` | Add random delays between issues (recommended) |
+| `mode.resumable` | boolean | `true` | Save progress so you can stop and restart |
+| `delay.mode` | string | `"random"` | `random` = between min/max \| `fixed` = always fixedMs |
+| `delay.minMs` | number | `240000` | Minimum random delay (4 min). Do not go below 60000 |
+| `delay.maxMs` | number | `480000` | Maximum random delay (8 min) |
+| `delay.fixedMs` | number | `300000` | Delay when mode is `fixed` (5 min) |
+| `labels.autoCreate` | boolean | `false` | Auto-create missing labels in GitHub |
+| `labels.colorMap` | object | `{}` | Map label names → hex colors for auto-creation |
+| `output.logFile` | string | `""` | Write a JSON results log to this path |
+| `output.showTable` | boolean | `true` | Show a summary table after completion |
+| `github.token` | string | `""` | **Leave blank** — use OAuth or `GITHUB_TOKEN` env var instead |
+
+> **Tip:** All `_note` keys in the file are comments and are ignored by cannon.
+
+---
+
+## Commands
+
+### cannon init
+
+Creates `cannon.config.json` in your project with all default settings and inline documentation.
 
 ```bash
-cp node_modules/@alien-protocol/cannon/.env.example .env
-# Edit .env and set GITHUB_TOKEN=ghp_yourtoken
+cannon init           # Create config (fails if already exists)
+cannon init --force   # Overwrite existing config
 ```
 
-**3. Prepare your issues file** (e.g. `issues.csv`)
+---
+
+### cannon auth
+
+Secure GitHub authentication. **No token copying needed** — uses GitHub's OAuth Device Flow.
+
+```bash
+cannon auth login     # Open browser → enter code → done. Token saved securely.
+cannon auth status    # Show who you're logged in as
+cannon auth logout    # Remove saved credentials
+```
+
+How it works:
+1. Cannon asks GitHub for a device code
+2. You open `github.com/login/device` and enter the displayed code
+3. GitHub sends a token back to cannon
+4. Token is saved to `~/.cannon/credentials.json` with `chmod 600` permissions
+
+No token is ever shown, copied, or stored in your project files.
+
+---
+
+### cannon validate
+
+Check everything before firing — catches config errors, missing files, and auth issues before you waste time.
+
+```bash
+cannon validate
+```
+
+Checks:
+- `cannon.config.json` exists and is valid JSON
+- GitHub token is present
+- Source file exists (for file-based sources)
+- Safe mode is configured
+- Issues can be loaded (dry loads your file)
+
+---
+
+### cannon fire
+
+Create your issues.
+
+```bash
+# Standard run — uses everything from cannon.config.json
+cannon fire
+
+# Preview without creating anything
+cannon fire --dry-run
+
+# Skip all delays (RISKY — may trigger GitHub spam detection)
+cannon fire --unsafe
+
+# Start fresh, ignoring saved progress
+cannon fire --no-resume
+
+# Override source from the command line (ignores config source section)
+cannon fire --source csv --file ./issues.csv
+cannon fire --source json --file ./issues.json --dry-run
+
+# Override delay settings from the CLI
+cannon fire --delay-mode fixed --delay-fixed 120000
+cannon fire --delay-min 30000 --delay-max 60000
+```
+
+All flags are **optional** — if omitted, the value comes from `cannon.config.json`.
+
+---
+
+## Safe Mode vs Unsafe Mode
+
+| | Safe Mode (`safeMode: true`) | Unsafe Mode (`safeMode: false`) |
+|---|---|---|
+| **Delays** | Random delays between issues | No delays |
+| **GitHub spam risk** | Low | High — may get your token flagged |
+| **Estimated time** | Longer | Near-instant |
+| **Recommended for** | All production use | Local testing only |
+
+**Safe mode is on by default.** Always use it when creating more than ~5 issues.
+
+Configure delay timing in `cannon.config.json`:
+
+```json
+"delay": {
+  "mode": "random",
+  "minMs": 240000,
+  "maxMs": 480000
+}
+```
+
+For a fixed delay instead:
+
+```json
+"delay": {
+  "mode": "fixed",
+  "fixedMs": 120000
+}
+```
+
+Or override from the CLI for a one-off run:
+
+```bash
+cannon fire --delay-mode fixed --delay-fixed 90000
+```
+
+---
+
+## Token Security
+
+### Required Scopes
+
+Cannon only needs **one scope**. Choose the minimum that covers your repos:
+
+| Scope | Use when |
+|-------|----------|
+| `public_repo` | All your target repos are **public** — use this, it's safer |
+| `repo` | Any of your target repos are **private** |
+
+> **Fine-grained PATs (recommended):** Grant only `Issues: Read & Write` and `Metadata: Read` on specific repos. This limits blast radius if the token is ever leaked.
+
+### How the Token is Stored
+
+When you run `cannon auth login`:
+
+- Token is saved to `~/.cannon/credentials.json` (your home directory, **not** your project)
+- The file is created with `mode 0o600` — readable only by your user
+- It is never written to `cannon.config.json`, `.env`, or your project directory
+
+When you set `GITHUB_TOKEN` in `.env`:
+
+- The `.env` file lives in your project root
+- Add `.env` to your `.gitignore` (cannon's default `.gitignore` already does this)
+- The token is loaded into memory at runtime and never logged
+
+### Token Resolution Order
+
+Cannon looks for a token in this order — the first one found is used:
+
+```
+1. Code option:  new IssueCannon({ token: '...' })      ← highest priority
+2. Shell env:    GITHUB_TOKEN=ghp_xxx cannon fire
+3. .env file:    GITHUB_TOKEN=ghp_xxx  (in project root)
+4. OAuth login:  ~/.cannon/credentials.json
+5. Config file:  cannon.config.json  github.token       ← not recommended
+```
+
+---
+
+## Issue Data Sources
+
+Every source must provide these fields per issue:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `repo` | ✅ | Full repo: `owner/repo` |
+| `title` | ✅ | Issue title |
+| `body` | — | Issue description |
+| `labels` | — | Comma-separated label names |
+| `milestone` | — | Milestone title (auto-created if missing) |
+| `priority` | — | Informational: `HIGH`, `MED`, `LOW` |
+| `track` | — | Informational: e.g. `auth`, `ui`, `docs` |
+
+### CSV
 
 ```csv
 repo,title,body,labels,milestone,priority,track
 owner/repo,Fix login bug,"Steps to reproduce...",bug,v1.0,HIGH,auth
-owner/repo,Add dark mode,"Users have requested...",enhancement,v1.1,MED,ui
+owner/repo,Add dark mode,"User request",enhancement,v1.1,MED,ui
 ```
 
-**4. Fire**
+Config:
+```json
+"source": { "type": "csv", "file": "./issues.csv" }
+```
+
+### JSON
+
+```json
+[
+  {
+    "repo": "owner/repo",
+    "title": "Fix login bug",
+    "body": "Steps to reproduce...",
+    "labels": "bug,auth",
+    "milestone": "v1.0"
+  }
+]
+```
+
+Config:
+```json
+"source": { "type": "json", "file": "./issues.json" }
+```
+
+### PDF
+
+Two layouts are auto-detected:
+
+**Block layout** (one issue per paragraph):
+```
+REPO: owner/repo
+TITLE: Fix login bug
+BODY: Steps to reproduce the issue here.
+LABELS: bug, auth
+MILESTONE: v1.0
+```
+
+**Table layout** (pipe or tab separated):
+```
+repo        | title         | body   | labels
+owner/repo  | Fix login bug | Steps  | bug,auth
+```
+
+Config:
+```json
+"source": { "type": "pdf", "file": "./issues.pdf" }
+```
+
+### DOCX (Word)
+
+Create a table in your `.docx`. First row = headers.
+
+| repo | title | body | labels | milestone |
+|------|-------|------|--------|-----------|
+| owner/repo | Fix login bug | Steps... | bug,auth | v1.0 |
+
+Config:
+```json
+"source": { "type": "docx", "file": "./issues.docx" }
+```
+
+### PostgreSQL
 
 ```bash
-npx @alien-protocol/cannon --source csv --file ./issues.csv
+# .env
+POSTGRES_URL=postgres://user:password@localhost:5432/mydb
 ```
 
----
-
-## Secure Token Setup
-
-Your GitHub token is a secret. **Never hardcode it** in source files or `cannon.config.json`.
-
-### Option A — `.env` file (recommended for local dev)
-
-```bash
-# .env  (add this to .gitignore!)
-GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
+Config:
+```json
+"source": {
+  "type": "postgres",
+  "connectionString": "${POSTGRES_URL}",
+  "query": "SELECT repo, title, body, labels, milestone FROM backlog WHERE exported = false"
+}
 ```
 
-The package automatically loads `.env` from your project root.
+### MySQL
 
-### Option B — Shell environment variable (recommended for CI/CD)
-
-```bash
-# Bash / Zsh
-export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
-npx @alien-protocol/cannon --source csv --file ./issues.csv
-
-# One-liner
-GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx npx @alien-protocol/cannon --source csv --file ./issues.csv
+Config:
+```json
+"source": {
+  "type": "mysql",
+  "connectionString": "${MYSQL_URL}",
+  "query": "SELECT repo, title, body, labels FROM issues WHERE status = 'pending'"
+}
 ```
 
-### Option C — CI/CD Secrets (GitHub Actions example)
+### SQLite
 
-```yaml
-# .github/workflows/create-issues.yml
-jobs:
-  create:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: npm ci
-      - run: npx @alien-protocol/cannon --source csv --file ./issues.csv
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # or a PAT stored in repo secrets
-```
-
-### Creating a GitHub Personal Access Token (PAT)
-
-1. Go to [github.com/settings/tokens/new](https://github.com/settings/tokens/new)
-2. Give it a name, e.g. `@alien-protocol/cannon`
-3. Set expiration (recommended: 90 days)
-4. Select scopes:
-   - **`repo`** — for private repos
-   - **`public_repo`** — for public repos only
-5. Click **Generate token** and copy it immediately (shown only once)
-
-> **Fine-grained tokens**: If using a fine-grained PAT, grant **Issues: Read & Write** and **Metadata: Read** on the target repositories.
-
----
-
-## CLI Usage
-
-```
-Usage: cannon [options]
-
-Options:
-  -s, --source <type>          Source type: csv | json | pdf | docx | postgres | mysql | sqlite
-  -f, --file <path>            Path to source file
-  -q, --query <sql>            SQL query (for database sources)
-  --connection-string <url>    DB connection string
-  --dry-run                    Preview without creating issues
-  --no-resume                  Ignore saved progress and start fresh
-  --delay-mode <mode>          random (default) | fixed
-  --delay-min <ms>             Min random delay in ms (default: 240000 = 4 min)
-  --delay-max <ms>             Max random delay in ms (default: 480000 = 8 min)
-  --delay-fixed <ms>           Fixed delay in ms when --delay-mode fixed (default: 300000)
-  -V, --version                Output the version number
-  -h, --help                   Display help
-```
-
-### CLI Examples
-
-```bash
-# From a CSV file
-npx @alien-protocol/cannon --source csv --file ./issues.csv
-
-# From a JSON file, dry run first
-npx @alien-protocol/cannon --source json --file ./issues.json --dry-run
-
-# From PostgreSQL (connection string in .env as POSTGRES_URL)
-npx @alien-protocol/cannon --source postgres \
-  --connection-string "${POSTGRES_URL}" \
-  --query "SELECT repo, title, body, labels, milestone FROM backlog WHERE done = false"
-
-# Fixed 2-minute delay instead of random
-npx @alien-protocol/cannon --source csv --file ./issues.csv \
-  --delay-mode fixed --delay-fixed 120000
-
-# Fast mode (shorter delays — use with caution)
-npx @alien-protocol/cannon --source csv --file ./issues.csv \
-  --delay-min 30000 --delay-max 60000
+Config:
+```json
+"source": {
+  "type": "sqlite",
+  "file": "./backlog.db",
+  "query": "SELECT repo, title, body, labels FROM issues"
+}
 ```
 
 ---
@@ -176,315 +421,76 @@ npx @alien-protocol/cannon --source csv --file ./issues.csv \
 import { IssueCannon } from '@alien-protocol/cannon';
 
 const cannon = new IssueCannon({
-  // token: 'ghp_...'  ← omit; use GITHUB_TOKEN env var instead
-  dryRun: false,
-  delay: {
-    mode: 'random',
-    minMs: 60_000,   // 1 min
-    maxMs: 120_000,  // 2 min
-  },
+  // All settings from cannon.config.json are loaded automatically.
+  // Pass overrides here only when needed:
+  safeMode: true,
+  dryRun:   false,
 });
 
+// Source is read from cannon.config.json by default.
+// Pass sourceOpts to override:
 const { created, failed } = await cannon.fire({
   source: 'csv',
-  file: './issues.csv',
+  file:   './issues.csv',
 });
 
 console.log(`Created: ${created.length}, Failed: ${failed.length}`);
 ```
 
-### Programmatic — from a database
-
-```js
-import { IssueCannon } from '@alien-protocol/cannon';
-
-const cannon = new IssueCannon({ dryRun: false });
-
-await cannon.fire({
-  source: 'postgres',
-  connectionString: process.env.POSTGRES_URL,
-  query: `
-    SELECT repo, title, body, labels, milestone
-    FROM github_backlog
-    WHERE exported = false
-    ORDER BY priority DESC
-  `,
-});
-```
-
-### Programmatic — from a raw array
-
-```js
-await cannon.fire({
-  source: 'array',
-  data: [
-    {
-      repo: 'owner/repo',
-      title: 'Fix the navbar',
-      body: 'The navbar breaks on mobile.',
-      labels: 'bug,mobile',
-      milestone: 'v2.0',
-    },
-  ],
-});
-```
-
----
-
-## Issue Data Sources
-
-### CSV
-
-**Required columns:** `repo`, `title`  
-**Optional columns:** `body`, `labels` (comma-separated), `milestone`, `priority`, `track`
-
-```csv
-repo,title,body,labels,milestone,priority,track
-owner/repo,Fix login bug,"Steps to reproduce...",bug,v1.0,HIGH,auth
-owner/repo-web,Update API docs,"New endpoints need docs","documentation,api",v1.0,MED,docs
-```
-
-```bash
-npx @alien-protocol/cannon --source csv --file ./issues.csv
-```
-
----
-
-### JSON
-
-An array of issue objects with the same fields as CSV.
-
-```json
-[
-  {
-    "repo": "owner/repo",
-    "title": "Fix login bug",
-    "body": "Steps to reproduce...",
-    "labels": "bug,auth",
-    "milestone": "v1.0",
-    "priority": "HIGH"
-  }
-]
-```
-
-```bash
-npx @alien-protocol/cannon --source json --file ./issues.json
-```
-
----
-
-### PDF
-
-Two layouts are auto-detected:
-
-**Table layout** (rows separated by `|`):
-
-```
-repo              | title          | body                | labels
-owner/repo        | Fix login bug  | Steps to reproduce  | bug,auth
-```
-
-**Block layout** (one issue per paragraph):
-
-```
-REPO: owner/repo
-TITLE: Fix login bug
-BODY: Steps to reproduce the issue here.
-LABELS: bug, auth
-MILESTONE: v1.0
-PRIORITY: HIGH
-```
-
-```bash
-npx @alien-protocol/cannon --source pdf --file ./issues.pdf
-```
-
----
-
-### DOCX (Word)
-
-Create a table in your `.docx` file. First row = headers.
-
-| repo | title | body | labels | milestone |
-|------|-------|------|--------|-----------|
-| owner/repo | Fix login bug | Steps to reproduce... | bug,auth | v1.0 |
-
-```bash
-npx @alien-protocol/cannon --source docx --file ./issues.docx
-```
-
----
-
-### PostgreSQL
-
-```bash
-# Set in .env
-POSTGRES_URL=postgres://user:password@localhost:5432/mydb
-```
-
-```bash
-npx @alien-protocol/cannon --source postgres \
-  --connection-string "${POSTGRES_URL}" \
-  --query "SELECT repo, title, body, labels, milestone FROM backlog WHERE exported = false"
-```
-
-Or programmatically:
-
-```js
-await cannon.fire({
-  source: 'postgres',
-  connectionString: process.env.POSTGRES_URL,
-  query: 'SELECT repo, title, body, labels, milestone FROM backlog',
-});
-```
-
-Your table needs columns that map to: `repo`, `title`, `body`, `labels`, `milestone`. Column names must match exactly.
-
----
-
-### MySQL
-
-```bash
-MYSQL_URL=mysql://user:password@localhost:3306/mydb
-```
-
-```js
-await cannon.fire({
-  source: 'mysql',
-  connectionString: process.env.MYSQL_URL,
-  query: 'SELECT repo, title, body, labels FROM issues WHERE status = "pending"',
-});
-```
-
----
-
-### SQLite
-
-```js
-await cannon.fire({
-  source: 'sqlite',
-  file: './backlog.db',
-  query: 'SELECT repo, title, body, labels FROM issues',
-});
-```
-
----
-
-## Configuration Reference
-
-Copy `cannon.config.example.json` to `cannon.config.json` in your project root. Settings in this file are merged with the defaults.
-
-```json
-{
-  "github": {
-    "token": ""
-  },
-  "delay": {
-    "mode": "random",
-    "minMs": 240000,
-    "maxMs": 480000,
-    "fixedMs": 300000
-  },
-  "dryRun": false,
-  "resumable": true
-}
-```
-
-**Priority order for token resolution:**
-
-```
-code option { token: '...' }
-    ↓ (fallback)
-GITHUB_TOKEN environment variable
-    ↓ (fallback)
-.env file  →  GITHUB_TOKEN=...
-    ↓ (fallback)
-cannon.config.json  →  github.token
-```
-
-> Always prefer env vars. Never commit tokens to git.
-
----
-
-## Delay / Rate Limiting
-
-GitHub's API will rate-limit or flag you if you create issues too fast. The cannon adds delays between each issue.
-
-| Mode | Description | Config |
-|------|-------------|--------|
-| `random` (default) | Random delay between `minMs` and `maxMs` | `delay.mode: "random"` |
-| `fixed` | Always waits exactly `fixedMs` | `delay.mode: "fixed"` |
-
-**Recommended minimums:**
-- `minMs: 60000` (1 min) for small batches (< 20 issues)
-- `minMs: 240000` (4 min) for large batches to avoid detection
-
-```bash
-# Fixed 90-second delay
-npx @alien-protocol/cannon --source csv --file ./issues.csv \
-  --delay-mode fixed --delay-fixed 90000
-```
-
----
-
-## Resume Support
-
-If the process is interrupted (Ctrl+C, network error, etc.), progress is saved to `.cannon_state.json`. Re-running the same command will skip already-created issues.
-
-```bash
-# Restart from scratch (ignore saved state)
-npx @alien-protocol/cannon --source csv --file ./issues.csv --no-resume
-```
-
-Add `.cannon_state.json` to your `.gitignore`.
-
----
-
-## Dry Run Mode
-
-Test your setup without creating any real issues:
-
-```bash
-npx @alien-protocol/cannon --source csv --file ./issues.csv --dry-run
-```
-
-This will:
-- Verify your token has access to all target repos
-- Print what would be created
-- Show the delay schedule
-
----
-
-## Required Issue Fields
-
-Every issue (regardless of source) must have:
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `repo` | ✅ | Full repo name: `owner/repo` |
-| `title` | ✅ | Issue title |
-| `body` | — | Issue body / description |
-| `labels` | — | Comma-separated label names |
-| `milestone` | — | Milestone title (auto-created if missing) |
-| `priority` | — | Informational: `HIGH`, `MED`, `LOW` |
-| `track` | — | Informational: e.g. `auth`, `ui`, `docs` |
-
 ---
 
 ## Security Best Practices
 
-1. **Never hardcode your token** — use `GITHUB_TOKEN` env var or `.env` file
-2. **Add to `.gitignore`:**
+1. **Use OAuth login** — `cannon auth login` is the safest option. No token ever touches your files.
+2. **Use fine-grained PATs** — Grant only `Issues: Read & Write` + `Metadata: Read` on specific repos.
+3. **Use `public_repo` scope** if all your repos are public — limits exposure.
+4. **Never put tokens in `cannon.config.json`** — the `github.token` field exists only as a last resort.
+5. **Add these to `.gitignore`:**
    ```
    .env
-   cannon.config.json
    .cannon_state.json
+   cannon-log.json
    ```
-3. **Use short-lived tokens** — set an expiry (90 days max recommended)
-4. **Minimum scopes** — use `public_repo` if only targeting public repos
-5. **Fine-grained PATs** — grant only Issues + Metadata on specific repos
-6. **Rotate tokens** — if a token is ever exposed, revoke it immediately at [github.com/settings/tokens](https://github.com/settings/tokens)
-7. **CI/CD** — use repository or organization secrets, never hardcode in YAML
+   > `cannon.config.json` is safe to commit **only if** you keep `github.token` blank and use OAuth or env vars.
+6. **Rotate tokens** if one is ever exposed: [github.com/settings/tokens](https://github.com/settings/tokens)
+7. **Set token expiry** — 90 days maximum recommended.
+8. **Use `cannon validate`** before every large batch to catch problems early.
+
+---
+
+## Suggested Features (Roadmap)
+
+Here are improvements that would significantly enhance the user experience:
+
+### 🏷️ Label Auto-Creation with Color Presets
+Already partially implemented via `labels.autoCreate` + `labels.colorMap`. Could be extended with a built-in library of common label color presets (GitHub's default label palette) so users don't need to look up hex codes.
+
+### 📋 Issue Templates
+Allow `cannon.config.json` to define a `bodyTemplate` string with `{{variables}}` that gets merged per-issue. Useful when all issues share a common structure (e.g., bug report format, feature request format).
+
+### 🔔 Webhook / Notification on Completion
+Add an `output.webhookUrl` option to POST a JSON summary to a Slack/Discord/Teams webhook when the batch finishes. Critical for long-running batches where you walk away.
+
+### 📊 Progress Dashboard (Web UI)
+A `cannon serve` command that opens a local browser dashboard showing real-time progress, a live feed of created issues, and a retry button for failed ones.
+
+### 🔁 Retry Failed Issues
+After a run, `cannon retry` could re-read `.cannon_state.json` and retry only the failed issues — no need to re-run the whole batch.
+
+### 🏷️ Milestone Auto-Archive
+Option to automatically close milestones after all their issues are created: `milestones.autoClose: true`.
+
+### 🔍 Duplicate Detection Modes
+Currently duplicates are detected by exact title match. Options could include: `fuzzy` (Levenshtein distance), `exact` (current), `none` (always create).
+
+### 📤 Export Created Issues
+After a run, export a CSV/JSON of all created issues with their GitHub URLs — useful for tracking and sharing with your team.
+
+### 🤖 AI-Powered Issue Enhancement
+Integrate the Anthropic API to automatically improve issue titles and bodies for clarity before creating them. Opt-in via `ai.enhance: true`.
+
+### 🔐 GitHub App Authentication
+Support GitHub Apps (not just PATs/OAuth) for organization-wide deployments where individual user tokens aren't appropriate.
 
 ---
 

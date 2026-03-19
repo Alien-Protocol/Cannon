@@ -1,6 +1,5 @@
 const GITHUB_API = 'https://api.github.com';
 
-/** Returns null if OK, or HTTP status code if not. */
 export async function verifyToken(repo, token) {
   const res = await fetch(`${GITHUB_API}/repos/${repo}`, {
     headers: authHeaders(token),
@@ -8,7 +7,6 @@ export async function verifyToken(repo, token) {
   return res.ok ? null : res.status;
 }
 
-/** Milestone cache keyed by "owner/repo::milestone title" */
 const _milestoneCache = {};
 
 export async function getOrCreateMilestone(repo, milestoneName, token) {
@@ -20,7 +18,6 @@ export async function getOrCreateMilestone(repo, milestoneName, token) {
     `${GITHUB_API}/repos/${repo}/milestones?state=all&per_page=50`,
     { headers: authHeaders(token) }
   );
-
   if (!listRes.ok) return (_milestoneCache[key] = null);
 
   const milestones = await listRes.json();
@@ -32,13 +29,48 @@ export async function getOrCreateMilestone(repo, milestoneName, token) {
     headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
     body: JSON.stringify({ title: milestoneName }),
   });
-
   if (!createRes.ok) return (_milestoneCache[key] = null);
   const created = await createRes.json();
   return (_milestoneCache[key] = created.number);
 }
 
-//  Duplicate title cache
+// ── Label auto-creation ───────────────────────────────────────────
+
+const _labelCache = {};
+
+/**
+ * Ensure a label exists in a repo.
+ * Creates it with the given hex color if it doesn't exist.
+ * @param {string} repo    — "owner/repo"
+ * @param {string} name    — label name
+ * @param {string} color   — hex color WITHOUT #, e.g. "ee0701"
+ * @param {string} token   — GitHub PAT
+ */
+export async function ensureLabel(repo, name, color, token) {
+  const key = `${repo}::${name}`;
+  if (_labelCache[key]) return;
+
+  // Check existing labels
+  const listRes = await fetch(
+    `${GITHUB_API}/repos/${repo}/labels?per_page=100`,
+    { headers: authHeaders(token) }
+  );
+  if (listRes.ok) {
+    const labels = await listRes.json();
+    if (labels.find(l => l.name === name)) {
+      _labelCache[key] = true;
+      return;
+    }
+  }
+
+  // Create label
+  const createRes = await fetch(`${GITHUB_API}/repos/${repo}/labels`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, color: color.replace('#', '') }),
+  });
+  _labelCache[key] = createRes.ok;
+}
 
 const _existingTitles = {};
 
@@ -64,10 +96,11 @@ async function fetchExistingTitles(repo, token) {
 
 /**
  * Create a single GitHub issue.
- * Skips if an issue with the same title already exists in the repo.
- * @param {object} issue   — { repo, title, body, labels, milestone }
- * @param {string} token   — GitHub PAT
- * @param {boolean} dryRun — if true, returns a fake response
+ * Skips duplicates (same title already exists in repo).
+ *
+ * @param {object}  issue   — { repo, title, body, labels, milestone }
+ * @param {string}  token   — GitHub PAT
+ * @param {boolean} dryRun  — if true, returns a fake response without hitting the API
  */
 export async function createIssue(issue, token, dryRun = false) {
   const repo = issue.repo?.trim();
@@ -102,18 +135,22 @@ export async function createIssue(issue, token, dryRun = false) {
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`GitHub ${res.status} on ${repo}: ${text}`);
+    const hint = res.status === 403
+      ? ' — check token has "repo" or "public_repo" scope'
+      : res.status === 401
+        ? ' — token invalid or expired; run: cannon auth login'
+        : '';
+    throw new Error(`GitHub ${res.status} on ${repo}${hint}: ${text}`);
   }
 
   const created = await res.json();
-
   if (_existingTitles[repo]) {
     _existingTitles[repo].add(created.title.trim().toLowerCase());
   }
   return created;
 }
 
-//  Internal helpers
+
 function authHeaders(token) {
   return {
     Authorization: `Bearer ${token}`,

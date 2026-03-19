@@ -12,14 +12,31 @@ const DEFAULTS = {
     token: '',
     apiVersion: '2022-11-28',
   },
-  delay: {
-    minMs: 60_000,   // 1 min
-    maxMs: 300_000,  // 5 min
-    mode: 'random',
-    fixedMs: 300_000,
+  source: {
+    type: 'csv',
+    file: '',
+    query: '',
+    connectionString: '',
   },
-  dryRun: false,
-  resumable: true,
+  mode: {
+    dryRun: false,
+    safeMode: true,
+    resumable: true,
+  },
+  delay: {
+    mode: 'random',
+    minMs: 240_000,   // 4 min
+    maxMs: 480_000,   // 8 min
+    fixedMs: 300_000, // 5 min
+  },
+  labels: {
+    autoCreate: false,
+    colorMap: {},
+  },
+  output: {
+    logFile: '',
+    showTable: true,
+  },
   stateFile: path.join(CWD, '.cannon_state.json'),
 };
 
@@ -29,30 +46,58 @@ export function loadConfig(overrides = {}) {
 
   if (fs.existsSync(configPath)) {
     try {
-      fileConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      const raw = fs.readFileSync(configPath, 'utf-8');
+      fileConfig = JSON.parse(raw);
     } catch (e) {
-      throw new Error(`cannon.config.json is invalid JSON: ${e.message}`);
+      throw new Error(`cannon.config.json has invalid JSON: ${e.message}`);
     }
   }
 
-  const merged = deepMerge(DEFAULTS, fileConfig);
+  // Strip comment keys (_xxx) before merging
+  const cleaned = stripComments(fileConfig);
+  const merged = deepMerge(DEFAULTS, cleaned);
 
-  // Token resolution: explicit → env var → .env → OAuth → config file
+  // Token priority chain
   const token =
-    overrides.token ||   // 1. passed directly in code
-    process.env.GITHUB_TOKEN || // 2. shell env var or .env file (loaded above)
-    getSavedToken() ||   // 3. ~/.cannon/credentials.json (cannon auth login)
-    merged.github?.token ||   // 4. cannon.config.json
+    overrides.token ||
+    process.env.GITHUB_TOKEN ||
+    getSavedToken() ||
+    merged.github?.token ||
     '';
+
+  // Programmatic overrides win over file config for simple fields
+  const mode = {
+    ...merged.mode,
+    ...(overrides.dryRun !== undefined ? { dryRun: overrides.dryRun } : {}),
+    ...(overrides.safeMode !== undefined ? { safeMode: overrides.safeMode } : {}),
+    ...(overrides.resumable !== undefined ? { resumable: overrides.resumable } : {}),
+  };
+
+  // Allow old-style `delay` override object to still work
+  const delay = overrides.delay
+    ? { ...merged.delay, ...overrides.delay }
+    : merged.delay;
 
   return {
     ...merged,
     github: { ...merged.github, token },
-    delay: overrides.delay ? { ...merged.delay, ...overrides.delay } : merged.delay,
-    dryRun: overrides.dryRun ?? merged.dryRun,
-    resumable: overrides.resumable ?? merged.resumable,
-    stateFile: overrides.stateFile ?? merged.stateFile,
+    mode,
+    delay,
+    stateFile: overrides.stateFile ?? merged.stateFile ?? DEFAULTS.stateFile,
   };
+}
+
+// ── Helpers ──────────────────────────────────────────────────────
+
+/** Remove all keys starting with "_" (comment keys) */
+function stripComments(obj) {
+  if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) return obj;
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (k.startsWith('_')) continue;
+    out[k] = stripComments(v);
+  }
+  return out;
 }
 
 function deepMerge(base, override) {
