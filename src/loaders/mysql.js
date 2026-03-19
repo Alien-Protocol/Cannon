@@ -1,14 +1,3 @@
-/**
- * loaders/mysql.js
- *
- * opts:
- *   host, user, password, database  — individual connection params, OR
- *   connectionString                 — mysql://user:pass@host/db
- *   query                            — SQL returning issue rows
- *
- * ⚠️  Store credentials in .env, not in cannon.config.json.
- */
-
 import mysql from 'mysql2/promise';
 
 export async function loadMySQL({ connectionString, host, user, password, database, query }) {

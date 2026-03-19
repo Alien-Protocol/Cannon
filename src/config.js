@@ -1,16 +1,3 @@
-/**
- * config.js — secure configuration loader
- *
- * Token resolution priority (highest → lowest):
- *   1. Explicit option:  new IssueCannon({ token: '...' })
- *   2. Env var:          GITHUB_TOKEN=ghp_xxx
- *   3. .env file:        GITHUB_TOKEN=ghp_xxx
- *   4. OAuth token:      ~/.cannon/credentials.json  ← cannon auth login
- *   5. Config file:      cannon.config.json → github.token
- *
- * ⚠️  NEVER commit your token to git.
- */
-
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';

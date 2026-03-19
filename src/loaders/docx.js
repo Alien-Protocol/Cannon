@@ -1,14 +1,3 @@
-/**
- * loaders/docx.js
- *
- * Parses a Word (.docx) document.
- * The document must contain a table where the first row is the header.
- * Supported columns: repo, title, body, labels, milestone, priority, track
- *
- * opts:
- *   file  {string} — path to .docx file
- */
-
 import fs from 'fs';
 import path from 'path';
 import mammoth from 'mammoth';
@@ -17,7 +6,7 @@ export async function loadDOCX({ file }) {
   if (!file) throw new Error('DOCX loader requires `file` option');
 
   const buffer = fs.readFileSync(path.resolve(file));
-  // Extract raw HTML — easier to parse tables from than markdown
+
   const { value: html } = await mammoth.convertToHtml({ buffer });
 
   return parseHTMLTable(html);

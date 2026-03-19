@@ -1,14 +1,3 @@
-/**
- * loaders/sqlite.js
- *
- * Uses sql.js — a pure-JS SQLite port (no native compilation needed).
- * Works on any Node.js version.
- *
- * opts:
- *   file   {string}  — path to .db / .sqlite file
- *   query  {string}  — SQL returning issue rows
- */
-
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';

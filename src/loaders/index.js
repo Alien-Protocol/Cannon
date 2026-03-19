@@ -1,22 +1,3 @@
-/**
- * loaders/index.js
- *
- * loadIssues({ source, ...opts }) → Promise<Issue[]>
- *
- * Supported sources:
- *   'csv'      → file path
- *   'pdf'      → file path  (extracts tables or line-based rows)
- *   'docx'     → file path  (parses table rows from Word doc)
- *   'json'     → file path  (array of issue objects)
- *   'postgres' → connection string / config
- *   'mysql'    → connection string / config
- *   'sqlite'   → db file path + query
- *   'array'    → raw JS array (programmatic use)
- *
- * Every loader must return objects with at minimum:
- *   { repo, title, body, labels?, milestone?, priority?, track? }
- */
-
 import { loadCSV }      from './csv.js';
 import { loadPDF }      from './pdf.js';
 import { loadDOCX }     from './docx.js';

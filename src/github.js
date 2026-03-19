@@ -1,7 +1,3 @@
-/**
- * github.js — thin wrapper around the GitHub REST API
- */
-
 const GITHUB_API = 'https://api.github.com';
 
 /** Returns null if OK, or HTTP status code if not. */
@@ -42,8 +38,8 @@ export async function getOrCreateMilestone(repo, milestoneName, token) {
   return (_milestoneCache[key] = created.number);
 }
 
-// ── Duplicate title cache ────────────────────
-// Keyed by "owner/repo" → Set of existing issue titles (lowercase)
+//  Duplicate title cache
+
 const _existingTitles = {};
 
 async function fetchExistingTitles(repo, token) {
@@ -77,7 +73,6 @@ export async function createIssue(issue, token, dryRun = false) {
   const repo = issue.repo?.trim();
   if (!repo) throw new Error(`Issue missing 'repo': "${issue.title}"`);
 
-  // ── Duplicate check ──────────────────────
   if (!dryRun) {
     const existing = await fetchExistingTitles(repo, token);
     if (existing.has(issue.title.trim().toLowerCase())) {
@@ -111,14 +106,14 @@ export async function createIssue(issue, token, dryRun = false) {
   }
 
   const created = await res.json();
-  // Add newly created title to cache so duplicates in same run are caught
+
   if (_existingTitles[repo]) {
     _existingTitles[repo].add(created.title.trim().toLowerCase());
   }
   return created;
 }
 
-// ── Internal helpers ──────────────────────────
+//  Internal helpers
 function authHeaders(token) {
   return {
     Authorization: `Bearer ${token}`,

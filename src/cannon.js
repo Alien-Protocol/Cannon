@@ -1,8 +1,3 @@
-/**
- * cannon.js — IssueCannon orchestrator
- * v1.0.8 code — only change: better auth error message
- */
-
 import fs from 'fs';
 import path from 'path';
 import { loadConfig } from './config.js';
@@ -41,7 +36,6 @@ export class IssueCannon {
   async fire(sourceOpts = {}) {
     const { config } = this;
 
-    // ── Auth check — clear message for both methods ──
     if (!config.github.token) {
       log.error('Not authenticated. Choose one of these options:\n');
       log.info(`  ${c.bold}Option A — OAuth login (recommended, no token needed):${c.reset}`);
@@ -57,13 +51,11 @@ export class IssueCannon {
     if (!issues.length) throw new Error('No issues loaded from source');
     this._log('info', `Loaded ${c.bold}${issues.length}${c.reset} issues`);
 
-    // Summarise by repo
     const repoMap = issues.reduce((a, r) => { a[r.repo] = (a[r.repo] || 0) + 1; return a; }, {});
     for (const [repo, n] of Object.entries(repoMap)) {
       this._log('dim', `${c.blue}${repo}${c.reset}  →  ${n} issue(s)`);
     }
 
-    // ── Verify token on each repo — skip bad ones, don't stop ──
     this._log('step', '🔑 Verifying token access...');
     const badRepos = new Set();
     const goodRepos = new Set();
@@ -93,7 +85,6 @@ export class IssueCannon {
     const done = new Set(state.completed);
     if (done.size) this._log('warn', `Resuming — ${done.size} already created`);
 
-    // Filter out issues for bad repos + already done
     const pending = issues.filter(r => !done.has(r.title) && !badRepos.has(r.repo));
 
     const results_prefail = [];
@@ -122,7 +113,7 @@ export class IssueCannon {
 
     const startTime = Date.now();
 
-    // ── Live bar setup ─────────────────────────
+
     // Bar stays on one line permanently.
     // ANSI escape codes:
     //   \x1b[s       = save cursor position
@@ -131,7 +122,7 @@ export class IssueCannon {
     //   \x1b[1A      = move cursor up 1 line
     //   \n           = move to next line (for issue logs below bar)
 
-    const W = 36; // bar width in chars
+    const W = 36;
 
     const drawBar = (done, total, status = '') => {
       if (this.silent) return;
@@ -150,9 +141,8 @@ export class IssueCannon {
       process.stdout.write(`\x1b[u\x1b[2K  ${bar}  ${pct}  ${cnt}${stat}${padding}\x1b[1B\r`);
     };
 
-    // Save cursor here — bar will always redraw at this exact position
     if (!this.silent) {
-      process.stdout.write(`\x1b[s\n`);  // save + reserve bar line
+      process.stdout.write(`\x1b[s\n`);
     }
 
     for (let i = 0; i < pending.length; i++) {
@@ -167,7 +157,6 @@ export class IssueCannon {
         state.completed.push(issue.title);
         if (config.resumable) this._saveState(state);
 
-        // Update bar fill + log issue BELOW bar
         drawBar(i + 1, pending.length);
         if (!this.silent)
           process.stdout.write(`\x1b[2K  ${c.green}✔${c.reset}  ${c.dim}#${created.number ?? i + 1}${c.reset}  ${issue.title.slice(0, 48).padEnd(48)}  ${c.dim}${created.html_url}${c.reset}\n`);
@@ -193,7 +182,7 @@ export class IssueCannon {
       }
     }
 
-    // Final bar — 100% full
+    // Final bar 
     drawBar(pending.length, pending.length, `${c.green}done${c.reset}`);
     if (!this.silent) process.stdout.write(`\n`);
 
@@ -234,7 +223,7 @@ export class IssueCannon {
     const elapsed = fmtDelay(Date.now() - (startTime || Date.now()));
     console.log(`\n${c.bold}${c.blue}📊 Summary${c.reset}\n`);
 
-    // ── Box table helper ───────────────────────
+    // Box table helper
     const boxTable = (rows, headers, colors) => {
       const colW = headers.map((h, i) =>
         Math.min(45, Math.max(h.length, ...rows.map(r => String(r[i] || '').length)))
@@ -252,7 +241,7 @@ export class IssueCannon {
       console.log(`${c.dim}${bot}${c.reset}`);
     };
 
-    // ── Created table ──────────────────────────
+    //  Created table
     if (results.created.length) {
       console.log(`${c.green}${c.bold}  ✔  Created: ${results.created.length}${c.reset}\n`);
       boxTable(
@@ -268,7 +257,7 @@ export class IssueCannon {
       console.log('');
     }
 
-    // ── Failed table ───────────────────────────
+    //  Failed table
     if (results.failed.length) {
       console.log(`${c.red}${c.bold}  ✖  Failed / Skipped: ${results.failed.length}${c.reset}\n`);
 
@@ -292,13 +281,13 @@ export class IssueCannon {
       console.log('');
     }
 
-    // ── Footer ─────────────────────────────────
+    //  Footer 
     const total = results.created.length + results.failed.length;
     console.log(`  ${c.dim}Total: ${total}  ·  Created: ${c.green}${results.created.length}${c.reset}${c.dim}  ·  Failed: ${c.red}${results.failed.length}${c.reset}${c.dim}  ·  Time: ${c.yellow}${elapsed}${c.reset}\n`);
   }
 }
 
-// ── Utility ───────────────────────────────────
+//  Utility 
 function progressBar(done, total, w = 30) {
   const f = Math.round((done / total) * w);
   return `${c.green}${'█'.repeat(f)}${c.dim}${'░'.repeat(w - f)}${c.reset}`;
@@ -311,11 +300,11 @@ async function liveCountdown(seconds, total, done, delayMs, drawBar) {
     const mm = String(Math.floor(s / 60)).padStart(2, '0');
     const ss = String(s % 60).padStart(2, '0');
     const est = fmtDelay((total - done) * delayMs + s * 1000);
-    // update bar line with sleep info — issues stay below untouched
+
     drawBar(done, total, `${c.yellow}next in ${mm}:${ss}${c.reset}  ${c.dim}·  ~${est} left${c.reset}`);
     await sleep(1000);
   }
-  // clear status text from bar after countdown ends
+
   drawBar(done, total);
 }
 

@@ -1,9 +1,3 @@
-/**
- * loaders/csv.js
- * Parses a CSV file into an array of issue objects.
- * Expected columns: repo, title, body, labels, milestone, priority, track
- */
-
 import fs from 'fs';
 import path from 'path';
 

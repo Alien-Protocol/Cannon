@@ -1,20 +1,3 @@
-/**
-
- * Stores token in ~/.cannon/credentials.json (mode 0o600 — owner only)
- *
- * Commands exposed via CLI:
- *   cannon auth login   → opens GitHub, shows code, waits, saves token
- *   cannon auth status  → show logged-in user
- *   cannon auth logout  → delete saved token
- *
- * Token priority in config.js:
- *   1. new IssueCannon({ token: '...' })   explicit code
- *   2. GITHUB_TOKEN env var
- *   3. .env file  →  GITHUB_TOKEN=...
- *   4. ~/.cannon/credentials.json          ← OAuth saved here
- *   5. cannon.config.json  →  github.token
- */
-
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -31,20 +14,16 @@ import os from 'os';
 const CLIENT_ID = 'Ov23li9tDhpIemxGcKs6';
 const SCOPES = 'repo';
 
-// ── Token storage ─────────────────────────────
 const CONFIG_DIR = path.join(os.homedir(), '.cannon');
 const CREDS_FILE = path.join(CONFIG_DIR, 'credentials.json');
 
-// ── ANSI ──────────────────────────────────────
 const c = {
      reset: '\x1b[0m', bold: '\x1b[1m', dim: '\x1b[2m',
      green: '\x1b[32m', yellow: '\x1b[33m', red: '\x1b[31m',
      cyan: '\x1b[36m', blue: '\x1b[34m', magenta: '\x1b[35m',
 };
 
-// ─────────────────────────────────────────────
-// PUBLIC API
-// ─────────────────────────────────────────────
+
 
 export async function login() {
      console.log(`\n${c.bold}${c.magenta}🛸  Cannon — GitHub Login${c.reset}\n`);
@@ -134,14 +113,11 @@ export function logout() {
      }
 }
 
-/** Used by config.js — returns OAuth token or null */
 export function getSavedToken() {
      return _loadToken()?.token ?? null;
 }
 
-// ─────────────────────────────────────────────
-// PRIVATE
-// ─────────────────────────────────────────────
+
 
 async function _poll(deviceCode, intervalSec) {
      const wait = (s) => new Promise(r => setTimeout(r, s * 1000));
@@ -179,7 +155,7 @@ function _saveToken(token, username) {
      fs.writeFileSync(
           CREDS_FILE,
           JSON.stringify({ token, username, savedAt: new Date().toISOString() }, null, 2),
-          { mode: 0o600 }  // only owner can read — no other users on the machine
+          { mode: 0o600 } 
      );
 }
 

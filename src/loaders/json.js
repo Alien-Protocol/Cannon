@@ -1,7 +1,3 @@
-/**
- * loaders/json.js
- * Loads issues from a JSON file (array of issue objects).
- */
 import fs from 'fs';
 import path from 'path';
 

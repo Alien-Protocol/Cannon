@@ -1,24 +1,3 @@
-/**
- * loaders/pdf.js
- *
- * Extracts issues from a PDF.
- *
- * Two strategies (auto-detected):
- *   A) Table-style PDF  — rows are delimited by | or tabs
- *      First row must be the header row.
- *
- *   B) Structured text PDF  — each issue is a block like:
- *        REPO: owner/repo
- *        TITLE: Fix the login bug
- *        BODY: Describe what's broken...
- *        LABELS: bug, auth
- *        MILESTONE: v1.2
- *
- * opts:
- *   file      {string}  — path to PDF
- *   strategy  {string}  — 'table' | 'text' | 'auto' (default)
- */
-
 import fs from 'fs';
 import path from 'path';
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
