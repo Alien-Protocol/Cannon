@@ -386,9 +386,9 @@ console.log(`Created: ${created.length}  Failed: ${failed.length}`);
 
 ---
 
-## Maintainer 
+## Maintainer
 
-   [ryzen-xp](https://github.com/ryzen-xp)
+[ryzen-xp](https://github.com/ryzen-xp)
 
 ## License
 
