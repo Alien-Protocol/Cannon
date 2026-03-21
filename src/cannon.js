@@ -82,14 +82,14 @@ export class IssueCannon {
     const issues = await loadIssues(effectiveSource);
     if (!issues.length) throw new Error('No issues loaded from source');
 
-    // Split by action for reporting
-    const toCreate = issues.filter((r) => r.action === 'create');
-    const toUpdate = issues.filter((r) => r.action === 'update');
+    // Count creates vs updates
+    const createCount = issues.filter((r) => (r.action || 'create') === 'create').length;
+    const updateCount = issues.filter((r) => r.action === 'update').length;
 
     this._log(
       'info',
-      `Loaded ${c.bold}${issues.length}${c.reset} issue(s) from ${c.cyan}${effectiveSource.source}${c.reset}` +
-      `  ${c.dim}(${c.green}${toCreate.length} create${c.reset}${c.dim}, ${c.yellow}${toUpdate.length} update${c.reset}${c.dim})${c.reset}`
+      `Loaded ${c.bold}${issues.length}${c.reset} row(s) from ${c.cyan}${effectiveSource.source}${c.reset}` +
+      `  (${c.green}${createCount} create${c.reset}, ${c.yellow}${updateCount} update${c.reset})`
     );
 
     const repoMap = issues.reduce((a, r) => {
@@ -141,11 +141,16 @@ export class IssueCannon {
     }
 
     // ── Resume state ──────────────────────────────────────────────
+    // Key includes action so create:Title and update:Title are tracked separately
     const state = config.mode.resumable ? this._loadState() : { completed: [], failed: [] };
     const done = new Set(state.completed);
-    if (done.size) this._log('warn', `Resuming — ${done.size} issue(s) already processed, skipping`);
+    if (done.size) this._log('warn', `Resuming — ${done.size} row(s) already processed, skipping`);
 
-    const pending = issues.filter((r) => !done.has(r.title) && !badRepos.has(r.repo));
+    const stateKey = (issue) => `${issue.action || 'create'}:${issue.title}`;
+
+    const pending = issues.filter(
+      (r) => !done.has(stateKey(r)) && !badRepos.has(r.repo)
+    );
 
     // Pre-fail bad-repo issues
     const results_prefail = [];
@@ -153,8 +158,8 @@ export class IssueCannon {
       .filter((r) => badRepos.has(r.repo))
       .forEach((r) => {
         const err = 'repo not found or no permission';
-        results_prefail.push({ action: r.action, repo: r.repo, title: r.title, error: err });
-        state.failed.push({ action: r.action, repo: r.repo, title: r.title, error: err });
+        results_prefail.push({ repo: r.repo, title: r.title, action: r.action || 'create', error: err });
+        state.failed.push({ repo: r.repo, title: r.title, action: r.action || 'create', error: err });
       });
 
     if (!pending.length) {
@@ -206,21 +211,15 @@ export class IssueCannon {
 
     for (let i = 0; i < pending.length; i++) {
       const issue = pending[i];
-      const actionLabel = issue.action === 'update'
-        ? `${c.yellow}updating…${c.reset}`
-        : `${c.cyan}creating…${c.reset}`;
+      const action = (issue.action || 'create').toLowerCase();
+      const actionLabel = action === 'update' ? `${c.yellow}updating…${c.reset}` : `${c.cyan}creating…${c.reset}`;
 
-      drawBar(
-        i,
-        pending.length,
-        `${actionLabel}  ${c.dim}${issue.title.slice(0, 35)}${c.reset}`
-      );
+      drawBar(i, pending.length, `${actionLabel}  ${c.dim}${issue.title.slice(0, 35)}${c.reset}`);
 
       try {
         let result;
 
-        if (issue.action === 'update') {
-          // ── UPDATE path ──────────────────────────────────────
+        if (action === 'update') {
           result = await updateIssue(issue, config.github.token, config.mode.dryRun);
           results.updated.push({
             repo: issue.repo,
@@ -228,17 +227,7 @@ export class IssueCannon {
             url: result.html_url,
             number: result.number,
           });
-          state.completed.push(issue.title);
-          if (config.mode.resumable) this._saveState(state);
-
-          drawBar(i + 1, pending.length);
-          if (!this.silent)
-            process.stdout.write(
-              `\x1b[2K  ${c.yellow}↑${c.reset}  ${c.dim}#${result.number ?? i + 1}${c.reset}  ` +
-              `${issue.title.slice(0, 48).padEnd(48)}  ${c.dim}${result.html_url}${c.reset}\n`
-            );
         } else {
-          // ── CREATE path ──────────────────────────────────────
           result = await createIssue(issue, config.github.token, config.mode.dryRun);
           results.created.push({
             repo: issue.repo,
@@ -246,41 +235,39 @@ export class IssueCannon {
             url: result.html_url,
             number: result.number,
           });
-          state.completed.push(issue.title);
-          if (config.mode.resumable) this._saveState(state);
-
-          drawBar(i + 1, pending.length);
-          if (!this.silent)
-            process.stdout.write(
-              `\x1b[2K  ${c.green}✔${c.reset}  ${c.dim}#${result.number ?? i + 1}${c.reset}  ` +
-              `${issue.title.slice(0, 48).padEnd(48)}  ${c.dim}${result.html_url}${c.reset}\n`
-            );
         }
+
+        state.completed.push(stateKey(issue));
+        if (config.mode.resumable) this._saveState(state);
+
+        const actionIcon = action === 'update' ? `${c.yellow}✎${c.reset}` : `${c.green}✔${c.reset}`;
+        drawBar(i + 1, pending.length);
+        if (!this.silent)
+          process.stdout.write(
+            `\x1b[2K  ${actionIcon}  ${c.dim}#${result.number ?? i + 1}${c.reset}  ` +
+            `${issue.title.slice(0, 48).padEnd(48)}  ${c.dim}${result.html_url}${c.reset}\n`
+          );
       } catch (err) {
-        drawBar(i + 1, pending.length, `${c.red}failed${c.reset}`);
+        // NOT_FOUND on an update row → skip gracefully, do not abort
+        const isNotFound = err.message.startsWith('NOT_FOUND:');
+        const isDuplicate = err.message.startsWith('DUPLICATE:');
+
+        drawBar(i + 1, pending.length, `${c.red}${isNotFound ? 'not found (skipped)' : 'failed'}${c.reset}`);
         if (!this.silent)
           process.stdout.write(
             `\x1b[2K  ${c.red}✖${c.reset}  ${issue.title.slice(0, 48).padEnd(48)}  ` +
-            `${c.dim}${err.message.startsWith('DUPLICATE')
-              ? 'already exists (skipped)'
-              : err.message.startsWith('UPDATE_NOT_FOUND')
-                ? 'issue not found for update'
+            `${c.dim}${isNotFound
+              ? 'not found in repo (skipped)'
+              : isDuplicate
+                ? 'already exists (skipped)'
                 : err.message.slice(0, 40)
             }${c.reset}\n`
           );
-        results.failed.push({
-          action: issue.action,
-          repo: issue.repo,
-          title: issue.title,
-          error: err.message,
-        });
-        state.failed.push({
-          action: issue.action,
-          repo: issue.repo,
-          title: issue.title,
-          error: err.message,
-        });
+
+        results.failed.push({ repo: issue.repo, title: issue.title, action, error: err.message });
+        state.failed.push({ repo: issue.repo, title: issue.title, action, error: err.message });
         if (config.mode.resumable) this._saveState(state);
+        // Always continue — never abort the loop
       }
 
       // ── Delay between issues ──────────────────────────────────
@@ -316,9 +303,7 @@ export class IssueCannon {
 
     // Clean up state if everything succeeded
     if (!results.failed.length && config.mode.resumable) {
-      try {
-        fs.unlinkSync(config.stateFile);
-      } catch { }
+      try { fs.unlinkSync(config.stateFile); } catch { }
     }
 
     return results;
@@ -396,7 +381,7 @@ export class IssueCannon {
     }
 
     if (results.updated.length) {
-      console.log(`${c.yellow}${c.bold}  ↑  Updated: ${results.updated.length}${c.reset}\n`);
+      console.log(`${c.yellow}${c.bold}  ✎  Updated: ${results.updated.length}${c.reset}\n`);
       boxTable(
         results.updated.map((r, i) => [`#${r.number ?? i + 1}`, r.repo, r.title, r.url || '']),
         ['#', 'Repo', 'Title', 'URL'],
@@ -408,8 +393,8 @@ export class IssueCannon {
     if (results.failed.length) {
       console.log(`${c.red}${c.bold}  ✖  Failed / Skipped: ${results.failed.length}${c.reset}\n`);
       const shortReason = (err = '') => {
+        if (err.startsWith('NOT_FOUND:')) return '⟳  title not found in repo (skipped)';
         if (err.startsWith('DUPLICATE:')) return '⟳  already exists (skipped)';
-        if (err.startsWith('UPDATE_NOT_FOUND:')) return '✕  issue not found for update';
         if (err.includes('not found')) return '✕  repo not found';
         if (err.includes('no permission')) return '✕  no permission';
         if (err.includes('required scope')) return '✕  token missing scope';
@@ -420,9 +405,9 @@ export class IssueCannon {
         return err.slice(0, 40);
       };
       boxTable(
-        results.failed.map((r) => [r.action ?? 'create', r.repo, r.title, shortReason(r.error)]),
+        results.failed.map((r) => [r.action || 'create', r.repo, r.title, shortReason(r.error)]),
         ['Action', 'Repo', 'Title', 'Reason'],
-        [c.cyan, c.blue, c.red, c.yellow]
+        [c.yellow, c.blue, c.red, c.yellow]
       );
       console.log('');
     }

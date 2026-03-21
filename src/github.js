@@ -60,12 +60,14 @@ export async function ensureLabel(repo, name, color, token) {
   _labelCache[key] = createRes.ok;
 }
 
-const _existingTitles = {};
-const _issueNumberCache = {};
+// ── Issue title → number cache ────────────────────────────────────
+
+const _existingIssues = {}; // repo → Map<lowerTitle, { number, title }>
 
 async function fetchExistingIssues(repo, token) {
-  if (_existingTitles[repo]) return _existingTitles[repo];
-  const titles = new Set();
+  if (_existingIssues[repo]) return _existingIssues[repo];
+
+  const map = new Map();
   let page = 1;
   while (true) {
     const res = await fetch(
@@ -75,29 +77,12 @@ async function fetchExistingIssues(repo, token) {
     if (!res.ok) break;
     const items = await res.json();
     if (!items.length) break;
-    items.forEach((i) => {
-      const key = i.title.trim().toLowerCase();
-      titles.add(key);
-      // Cache issue number by title for update lookup
-      if (!_issueNumberCache[repo]) _issueNumberCache[repo] = {};
-      _issueNumberCache[repo][key] = i.number;
-    });
+    items.forEach((i) => map.set(i.title.trim().toLowerCase(), { number: i.number, title: i.title }));
     if (items.length < 100) break;
     page++;
   }
-  _existingTitles[repo] = titles;
-  return titles;
-}
-
-/**
- * Find an existing issue number by title.
- * Returns null if not found.
- */
-export async function findIssueByTitle(repo, title, token) {
-  await fetchExistingIssues(repo, token);
-  const key = title.trim().toLowerCase();
-  const number = _issueNumberCache[repo]?.[key];
-  return number ?? null;
+  _existingIssues[repo] = map;
+  return map;
 }
 
 /**
@@ -147,37 +132,29 @@ export async function createIssue(issue, token, dryRun = false) {
   }
 
   const created = await res.json();
-  if (_existingTitles[repo]) {
-    _existingTitles[repo].add(created.title.trim().toLowerCase());
-  }
+  // Add to cache so later duplicate checks see it
+  const map = await fetchExistingIssues(repo, token);
+  map.set(created.title.trim().toLowerCase(), { number: created.number, title: created.title });
   return created;
 }
 
 /**
  * Update an existing GitHub issue by title match.
- * Finds the issue number from the repo, then PATCHes it.
  *
- * @param {object}  issue   — { repo, title, body, labels, milestone }
- * @param {string}  token   — GitHub PAT
- * @param {boolean} dryRun  — if true, returns a fake response without hitting the API
+ * Returns the updated issue on success.
+ * Throws with "NOT_FOUND:" prefix if no matching title exists — caller
+ * should treat this as a skip rather than a fatal error.
  */
 export async function updateIssue(issue, token, dryRun = false) {
   const repo = issue.repo?.trim();
   if (!repo) throw new Error(`Issue missing 'repo': "${issue.title}"`);
 
-  if (dryRun) {
-    return {
-      html_url: `https://github.com/${repo}/issues/0`,
-      number: 0,
-      _dryRun: true,
-      _updated: true,
-    };
-  }
+  const existing = await fetchExistingIssues(repo, token);
+  const match = existing.get(issue.title.trim().toLowerCase());
 
-  // Find existing issue number by title
-  const issueNumber = await findIssueByTitle(repo, issue.title, token);
-  if (!issueNumber) {
-    throw new Error(`UPDATE_NOT_FOUND: no issue with title "${issue.title}" found in ${repo}`);
+  if (!match) {
+    // Soft error — caller skips this row instead of aborting the whole run
+    throw new Error(`NOT_FOUND: no issue titled "${issue.title}" in ${repo}`);
   }
 
   const labels = normLabels(issue.labels);
@@ -190,7 +167,15 @@ export async function updateIssue(issue, token, dryRun = false) {
     ...(milestoneNumber ? { milestone: milestoneNumber } : {}),
   };
 
-  const res = await fetch(`${GITHUB_API}/repos/${repo}/issues/${issueNumber}`, {
+  if (dryRun) {
+    return {
+      html_url: `https://github.com/${repo}/issues/${match.number}`,
+      number: match.number,
+      _dryRun: true,
+    };
+  }
+
+  const res = await fetch(`${GITHUB_API}/repos/${repo}/issues/${match.number}`, {
     method: 'PATCH',
     headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -204,11 +189,10 @@ export async function updateIssue(issue, token, dryRun = false) {
         : res.status === 401
           ? ' — token invalid or expired; run: cannon auth login'
           : '';
-    throw new Error(`GitHub ${res.status} on ${repo}#${issueNumber}${hint}: ${text}`);
+    throw new Error(`GitHub ${res.status} updating #${match.number} on ${repo}${hint}: ${text}`);
   }
 
-  const updated = await res.json();
-  return { ...updated, _updated: true };
+  return res.json();
 }
 
 function authHeaders(token) {
