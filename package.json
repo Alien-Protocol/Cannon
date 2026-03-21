@@ -1,6 +1,6 @@
 {
   "name": "@alien-protocol/cannon",
-  "version": "2.3.1",
+  "version": "2.3.0",
   "publishConfig": {
     "access": "public"
   },
