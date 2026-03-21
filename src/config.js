@@ -5,10 +5,9 @@ import { getSavedToken } from './auth.js';
 
 const CWD = process.cwd();
 
-// Load .env from project root
 dotenv.config({ path: path.join(CWD, '.env') });
 
-// ── Defaults (mirrors cannon.config.json structure) ──────────────
+
 const DEFAULTS = {
   github: {
     token: '',

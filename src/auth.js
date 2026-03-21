@@ -2,15 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-// ─────────────────────────────────────────────
-// GitHub OAuth App client_id
-// This is a PUBLIC value — safe to ship in source.
-// Create your own app at: github.com/settings/developers → OAuth Apps → New
-//   Homepage URL:   https://github.com/Alien-Protocol/Cannon
-//   Callback URL:   http://localhost  (not used — Device Flow doesn't redirect)
-//   Device Flow:    ✅ Enable Device Flow
-// Then set CANNON_CLIENT_ID env var or replace the fallback string below.
-// ─────────────────────────────────────────────
+
 const CLIENT_ID = 'Ov23li9tDhpIemxGcKs6';
 const SCOPES = 'repo';
 

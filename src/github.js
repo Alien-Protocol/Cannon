@@ -33,7 +33,7 @@ export async function getOrCreateMilestone(repo, milestoneName, token) {
   return (_milestoneCache[key] = created.number);
 }
 
-// ── Label auto-creation ───────────────────────────────────────────
+// Label auto-creation 
 
 const _labelCache = {};
 
@@ -60,9 +60,9 @@ export async function ensureLabel(repo, name, color, token) {
   _labelCache[key] = createRes.ok;
 }
 
-// ── Issue title → number cache ────────────────────────────────────
+//  Issue title → number cache 
 
-const _existingIssues = {}; // repo → Map<lowerTitle, { number, title }>
+const _existingIssues = {}; 
 
 async function fetchExistingIssues(repo, token) {
   if (_existingIssues[repo]) return _existingIssues[repo];
@@ -152,8 +152,7 @@ export async function updateIssue(issue, token, dryRun = false) {
   const existing = await fetchExistingIssues(repo, token);
   const match = existing.get(issue.title.trim().toLowerCase());
 
-  if (!match) {
-    // Soft error — caller skips this row instead of aborting the whole run
+  if (!match) { 
     throw new Error(`NOT_FOUND: no issue titled "${issue.title}" in ${repo}`);
   }
 
