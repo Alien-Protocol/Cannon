@@ -25,16 +25,28 @@
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
-  "keywords": [
-    "github",
-    "issues",
-    "bulk",
-    "automation",
-    "csv",
-    "oauth",
-    "cli",
-    "alien-protocol"
-  ],
+"keywords": [
+  "github cli",
+  "github issues",
+  "github issue automation",
+  "bulk github issues",
+  "github issue importer",
+  "github issue creator",
+  "github issue generator",
+  "issue automation",
+  "issue migration tool",
+  "backlog importer",
+  "backlog sync github",
+  "csv to github issues",
+  "json to github issues",
+  "database to github issues",
+  "bulk issue creator",
+  "developer tools",
+  "dev productivity",
+  "node cli",
+  "cli tool",
+  "github automation"
+],
   "author": "Alien Protocol <https://github.com/Alien-Protocol>",
   "license": "MIT",
   "repository": {

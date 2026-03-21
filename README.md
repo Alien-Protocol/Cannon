@@ -1,375 +1,178 @@
 # 🛸 @alien-protocol/cannon
 
-> Bulk-create **and update** GitHub issues from **CSV, PDF, DOCX, JSON, or any SQL database** — one config file, safe delays, duplicate detection, and resume support.
+**Stop manually creating GitHub issues.**
+Bulk-create, update, and sync issues from CSV, JSON, PDF, DOCX, or any database — in one command.
 
-## Installation
+[![npm](https://img.shields.io/npm/v/@alien-protocol/cannon)](https://www.npmjs.com/package/@alien-protocol/cannon)
+[![downloads](https://img.shields.io/npm/dm/@alien-protocol/cannon)](https://www.npmjs.com/package/@alien-protocol/cannon)
+[![license](https://img.shields.io/npm/l/@alien-protocol/cannon)](LICENSE)
+[![node](https://img.shields.io/node/v/@alien-protocol/cannon)](package.json)
 
-**Option A — Install globally (recommended)**
-Run once, then use `cannon` anywhere:
+---
+
+## ⚡ Why Cannon?
+
+| | |
+|---|---|
+| ⏳ | Save hours of manual issue creation |
+| 🔁 | Sync any backlog → GitHub instantly |
+| 🛡️ | Built-in duplicate detection & safe delays |
+| ⚙️ | Works with CSV, Excel, databases, Word docs |
+| ♻️ | Resumable — stop and restart safely |
+
+---
+
+## 🚀 Quick Start
 
 ```bash
 npm install -g @alien-protocol/cannon
 ```
 
-**Option B — No install, use npx**
-Prefix every command with `npx @alien-protocol/cannon`:
-
 ```bash
-npx @alien-protocol/cannon init
-npx @alien-protocol/cannon fire --preview
-```
-
-> All examples in this README use the global `cannon` command.
-> If you chose Option B, just add `npx @alien-protocol/cannon` in front of each one.
-
----
-
-## Quick Start
-
-```bash
-# 1. Create your config file
-cannon init
-
-# 2. Login with GitHub (no token needed)
-cannon auth login
-
-# 3. Preview — nothing gets created or updated
-cannon fire --preview
-
-# 4. Fire your issues
-cannon fire
+cannon init            # 1. create cannon.config.json
+cannon auth login      # 2. OAuth login — no token needed
+cannon fire --preview  # 3. dry run — nothing created yet
+cannon fire            # 4. go live
 ```
 
 ---
-## Working Screenshot - 
 
-![asset_01](./assets/asset_01.png)
+## 👀 See It In Action
 
-![asset_02](./assets/asset_02.png)
+![cannon running](./assets/asset_01.png)
+![cannon summary](./assets/asset_02.png)
 
 ---
 
-## The Config File
+## 🎯 Use Cases
 
-`cannon init` creates this in your project. Edit it, then run `cannon fire`.
+| Scenario | How |
+|----------|-----|
+| Import 100+ issues from Excel | Save as CSV → `cannon fire -s csv -f ./issues.csv` |
+| Migrate backlog between repos | Export issues, update `repo` column, fire |
+| Auto-create from product docs | Convert Word table to DOCX → point cannon at it |
+| Sync a database → GitHub | Use `postgres` / `mysql` / `sqlite` source |
+| Bulk-update existing issues | Set `action` column to `update` |
+
+---
+
+## 📄 Your Data File
+
+All sources use the same columns:
+
+| Column | Required | Description | Example |
+|--------|----------|-------------|---------|
+| `repo` | ✅ | Target repository | `owner/repo` |
+| `title` | ✅ | Issue title — also the lookup key for `update` | `Fix login bug` |
+| `action` | — | `create` (default) or `update` | `create` |
+| `body` | — | Description — markdown supported | `Steps to reproduce…` |
+| `labels` | — | Comma-separated label names | `bug,auth` |
+| `milestone` | — | Auto-created if it doesn't exist | `v1.0` |
+
+### How `action` works
+
+| Value | What cannon does | If title already exists |
+|-------|-----------------|------------------------|
+| `create` | Opens a new issue | Skipped — duplicate guard |
+| `update` | Finds issue by title, patches body / labels / milestone | Title is the stable key |
+| *(blank)* | Same as `create` | Same as `create` |
+
+### CSV example
+
+| action | repo | title | body | labels | milestone |
+|--------|------|-------|------|--------|-----------|
+| `create` | `owner/repo` | Fix login bug | Steps to reproduce… | `bug` | `v1.0` |
+| `update` | `owner/repo` | Fix login bug | Updated steps | `bug,high` | `v1.0` |
+| `create` | `owner/repo` | Add dark mode | User request | `enhancement` | `v1.1` |
+
+### Supported sources
+
+| Format | Config snippet |
+|--------|---------------|
+| CSV | `"type": "csv", "file": "./issues.csv"` |
+| JSON | `"type": "json", "file": "./issues.json"` |
+| PDF | `"type": "pdf", "file": "./issues.pdf"` |
+| DOCX / Word | `"type": "docx", "file": "./issues.docx"` |
+| SQLite | `"type": "sqlite", "file": "./backlog.db", "query": "SELECT …"` |
+| PostgreSQL | `"type": "postgres", "connectionString": "${POSTGRES_URL}", "query": "SELECT …"` |
+| MySQL | `"type": "mysql", "connectionString": "${MYSQL_URL}", "query": "SELECT …"` |
+
+---
+
+## ⚙️ Config File
 
 ```json
 {
-  "source": {
-    "//": "type options: csv | json | pdf | docx | sqlite | postgres | mysql",
-    "type": "csv",
-    "file": "./issues.csv"
-  },
-
-  "mode": {
-    "//": "safeMode adds random delays — always keep true for large batches",
-    "safeMode": true,
-    "dryRun": false,
-    "resumable": true
-  },
-
-  "delay": {
-    "//": "minutes between each issue — only used when safeMode is true",
-    "min": 4,
-    "max": 8
-  },
-
-  "labels": {
-    "//": "autoCreate will create missing labels in GitHub automatically",
-    "autoCreate": false,
-    "colors": {
-      "bug": "ee0701",
-      "enhancement": "0075ca",
-      "documentation": "0052cc",
-      "security": "e11d48",
-      "performance": "f97316",
-      "accessibility": "8b5cf6"
-    }
-  },
-
-  "output": {
-    "//": "logFile path to save a JSON log after each run — leave blank to skip",
-    "logFile": "",
-    "showTable": true
-  },
-
-  "notify": {
-    "//": "webhookUrl accepts any Slack / Discord / Teams incoming webhook URL",
-    "webhookUrl": "",
-    "onSuccess": true,
-    "onFailure": true
-  }
+  "source": { "type": "csv", "file": "./issues.csv" },
+  "mode":   { "safeMode": true, "dryRun": false, "resumable": true },
+  "delay":  { "min": 4, "max": 8 }
 }
 ```
 
-### Config Options
-
-| Key                       | Default        | Description                                                        |
-| ------------------------- | -------------- | ------------------------------------------------------------------ |
-| `source.type`             | `csv`          | `csv` · `json` · `pdf` · `docx` · `sqlite` · `postgres` · `mysql` |
-| `source.file`             | `./issues.csv` | Path to your issues file                                           |
-| `source.query`            | —              | SQL query (database sources only)                                  |
-| `source.connectionString` | —              | DB connection URL — use `${ENV_VAR}`, never hardcode               |
-| `mode.safeMode`           | `true`         | Random delays between issues — keeps you off GitHub's radar        |
-| `mode.dryRun`             | `false`        | Preview only, nothing created or updated                           |
-| `mode.resumable`          | `true`         | Saves progress so you can stop and restart safely                  |
-| `delay.min`               | `4`            | Minimum minutes between issues                                     |
-| `delay.max`               | `8`            | Maximum minutes between issues                                     |
-| `labels.autoCreate`       | `false`        | Auto-create missing labels in GitHub                               |
-| `labels.colors`           | see above      | Label name → hex color for auto-creation                           |
-| `output.logFile`          | —              | Save a JSON results log to this path                               |
-| `output.showTable`        | `true`         | Show a summary table after completion                              |
-| `notify.webhookUrl`       | —              | Slack / Discord / Teams webhook URL                                |
-| `notify.onSuccess`        | `true`         | Notify when batch completes successfully                           |
-| `notify.onFailure`        | `true`         | Notify when any issues fail                                        |
+| Key | Default | What it does |
+|-----|---------|-------------|
+| `source.type` | `csv` | One of: `csv` `json` `pdf` `docx` `sqlite` `postgres` `mysql` |
+| `mode.safeMode` | `true` | Random 4–8 min delays — prevents GitHub spam flags |
+| `mode.dryRun` | `false` | Preview only, nothing is created |
+| `mode.resumable` | `true` | Saves progress — safe to stop and restart |
+| `delay.min` / `max` | `4` / `8` | Minutes between issues (safeMode only) |
 
 ---
 
-## Commands
+## 🖥️ Commands
 
-### `cannon init`
+### Auth
+| Command | What it does |
+|---------|-------------|
+| `cannon auth login` | OAuth login — no token needed |
+| `cannon auth status` | Show who is logged in |
+| `cannon auth logout` | Remove saved credentials |
 
-Creates `cannon.config.json` with defaults. Edit it, then fire.
+### Setup
+| Command | What it does |
+|---------|-------------|
+| `cannon init` | Create `cannon.config.json` |
+| `cannon validate` | Check config + source file before firing |
 
-```bash
-cannon init            # create config
-cannon init --force    # overwrite existing config
-```
-
----
-
-### `cannon auth`
-
-Secure GitHub login — no token copying needed.
-
-```bash
-cannon auth login      # login via GitHub OAuth
-cannon auth status     # show who you're logged in as
-cannon auth logout     # remove saved credentials
-```
-
-How it works: cannon shows you a short code → you enter it at `github.com/login/device` → done. Token is saved to `~/.cannon/credentials.json`, never in your project.
-
----
-
-### `cannon validate`
-
-Checks everything before you fire — catches problems early.
-
-```bash
-cannon validate
-```
-
-Checks your config is valid JSON · token is present · source file exists · issues can be loaded.
+### Fire
+| Command | What it does |
+|---------|-------------|
+| `cannon fire` | Run using `cannon.config.json` |
+| `cannon fire --preview` | Dry run — nothing created, no delays |
+| `cannon fire --unsafe` | No delays (fast, risky) |
+| `cannon fire --delay 2` | Fixed 2-min delay between issues |
+| `cannon fire --fresh` | Ignore saved progress, start over |
+| `cannon fire -s csv -f ./my.csv` | Override source without editing config |
 
 ---
 
-### `cannon fire`
+## 🔌 Programmatic Use
 
-Create and/or update your issues.
+```js
+import { IssueCannon } from '@alien-protocol/cannon';
 
-```bash
-cannon fire                          # run using cannon.config.json
-cannon fire --preview                # dry run — nothing created or updated, no delays
-cannon fire --unsafe                 # no delays (fast but risky)
-cannon fire --delay 2                # fixed 2-minute delay between issues
-cannon fire --fresh                  # ignore saved progress, start over
+const { created, updated, failed } = await new IssueCannon({ safeMode: true })
+  .fire({ source: 'csv', file: './issues.csv' });
 
-# override source without editing config
-cannon fire -s csv  -f ./issues.csv
-cannon fire -s json -f ./issues.json --preview
-cannon fire -s docx -f ./issues.docx --delay 1
-cannon fire -s pdf  -f ./issues.pdf  --unsafe
-```
-
-| Flag             | What it does                                                      |
-| ---------------- | ----------------------------------------------------------------- |
-| `--preview`      | Dry run — shows what would be created/updated, skips all delays   |
-| `--unsafe`       | No delays at all — fast but GitHub may flag as spam               |
-| `--delay <mins>` | Fixed delay in minutes, e.g. `--delay 2`                          |
-| `--fresh`        | Ignore saved progress and start from the beginning                |
-| `-s <type>`      | Source type override                                              |
-| `-f <path>`      | Source file override                                              |
-| `-q <sql>`       | SQL query override (database sources)                             |
-
----
-
-## Safe Mode vs Unsafe Mode
-
-|                  | Safe (`safeMode: true`)    | Unsafe (`safeMode: false`) |
-| ---------------- | -------------------------- | -------------------------- |
-| Delays           | Random, 4–8 min by default | None                       |
-| GitHub spam risk | Low                        | High                       |
-| Recommended for  | All real runs              | Testing only               |
-
-Safe mode is on by default. For large batches never turn it off.
-
----
-
-## Issue Sources
-
-Every source needs at minimum: `repo` and `title`.
-
-| Field       | Required | Description                                                     |
-| ----------- | -------- | --------------------------------------------------------------- |
-| `action`    | —        | `create` (default) or `update` — controls what cannon does      |
-| `repo`      | ✅       | `owner/repo`                                                    |
-| `title`     | ✅       | Issue title — used as the lookup key for `update`               |
-| `body`      | —        | Description                                                     |
-| `labels`    | —        | Comma-separated: `bug,auth`                                     |
-| `milestone` | —        | Auto-created if it doesn't exist                                |
-| `priority`  | —        | `HIGH` · `MED` · `LOW` (informational)                          |
-| `track`     | —        | e.g. `auth`, `ui`, `docs` (informational)                       |
-
-### The `action` column
-
-Add an `action` column to any source file to mix creates and updates in a single run.
-
-| Value          | What cannon does                                                                                           |
-| -------------- | ---------------------------------------------------------------------------------------------------------- |
-| `create`       | Opens a **new** issue. Skipped if an issue with the same title already exists (duplicate guard).           |
-| `update`       | Finds the **existing** issue by exact title match, then patches its body, labels, and milestone.           |
-| *(blank/omit)* | Defaults to `create`.                                                                                      |
-
-> **Note:** For `update`, the title is the stable lookup key — it is not changed by the patch. If no matching issue is found, the row fails with `UPDATE_NOT_FOUND` and is shown in the summary.
-
-### CSV
-
-```csv
-action,repo,title,body,labels,milestone
-create,owner/repo,Fix login bug,"Steps to reproduce...",bug,v1.0
-update,owner/repo,Fix login bug,"Updated repro steps and raised priority",bug high,v1.0
-create,owner/repo,Add dark mode,"User request",enhancement,v1.1
-```
-
-```json
-"source": { "type": "csv", "file": "./issues.csv" }
-```
-
-### JSON
-
-```json
-[
-  {
-    "action": "create",
-    "repo": "owner/repo",
-    "title": "Fix login bug",
-    "body": "Steps to reproduce...",
-    "labels": "bug,auth",
-    "milestone": "v1.0"
-  },
-  {
-    "action": "update",
-    "repo": "owner/repo",
-    "title": "Fix login bug",
-    "body": "Updated repro steps.",
-    "labels": "bug,auth,high"
-  }
-]
-```
-
-```json
-"source": { "type": "json", "file": "./issues.json" }
-```
-
-### PDF
-
-Two layouts are auto-detected.
-
-**Block layout:**
-
-```
-REPO: owner/repo
-TITLE: Fix login bug
-BODY: Steps to reproduce.
-LABELS: bug, auth
-MILESTONE: v1.0
-```
-
-**Table layout** (pipe-separated):
-
-```
-repo       | title         | body  | labels
-owner/repo | Fix login bug | Steps | bug,auth
-```
-
-```json
-"source": { "type": "pdf", "file": "./issues.pdf" }
-```
-
-### DOCX
-
-A table in your Word file. First row = headers.
-
-| action | repo       | title         | body     | labels   |
-| ------ | ---------- | ------------- | -------- | -------- |
-| create | owner/repo | Fix login bug | Steps... | bug,auth |
-| update | owner/repo | Fix login bug | Updated. | bug,high |
-
-```json
-"source": { "type": "docx", "file": "./issues.docx" }
-```
-
-### PostgreSQL
-
-```bash
-# .env
-POSTGRES_URL=postgres://user:password@localhost:5432/mydb
-```
-
-```json
-"source": {
-  "type": "postgres",
-  "connectionString": "${POSTGRES_URL}",
-  "query": "SELECT action, repo, title, body, labels, milestone FROM backlog WHERE exported = false"
-}
-```
-
-### MySQL
-
-```json
-"source": {
-  "type": "mysql",
-  "connectionString": "${MYSQL_URL}",
-  "query": "SELECT action, repo, title, body, labels FROM issues WHERE status = 'pending'"
-}
-```
-
-### SQLite
-
-```json
-"source": {
-  "type": "sqlite",
-  "file": "./backlog.db",
-  "query": "SELECT action, repo, title, body, labels FROM issues"
-}
+console.log(`Created: ${created.length}  Updated: ${updated.length}  Failed: ${failed.length}`);
 ```
 
 ---
 
-## Token Security
+## 🔐 Token Security
 
-### Minimum required scope
+Tokens are **never stored in your project**. `cannon auth login` saves to `~/.cannon/credentials.json` (`chmod 600`).
 
-- `public_repo` — if all your repos are public
-- `repo` — if any repo is private
-- Fine-grained PAT — grant only `Issues: Read & Write` + `Metadata: Read` on specific repos
+### Resolution order
 
-### How the token is stored
+| Priority | Source |
+|----------|--------|
+| 1 | `new IssueCannon({ token: '...' })` — programmatic |
+| 2 | `GITHUB_TOKEN` env var or `.env` file |
+| 3 | `cannon auth login` → `~/.cannon/credentials.json` |
+| 4 | `cannon.config.json` `github.token` — not recommended |
 
-`cannon auth login` saves your token to `~/.cannon/credentials.json` with `chmod 600` — only your user can read it. It is never written to your project directory.
-
-### Token resolution order
-
-```
-1. new IssueCannon({ token: '...' })   ← programmatic
-2. GITHUB_TOKEN env var
-3. .env file  →  GITHUB_TOKEN=ghp_xxx
-4. cannon auth login  →  ~/.cannon/credentials.json
-5. cannon.config.json  github.token   ← last resort, not recommended
-```
-
-### `.gitignore` — add these
+### `.gitignore`
 
 ```
 .env
@@ -377,81 +180,12 @@ POSTGRES_URL=postgres://user:password@localhost:5432/mydb
 cannon-log.json
 ```
 
-`cannon.config.json` is safe to commit as long as `github.token` is blank.
+> `cannon.config.json` is safe to commit — just leave `github.token` blank.
 
 ---
-
-## Programmatic Usage
-
-```js
-import { IssueCannon } from '@alien-protocol/cannon';
-
-const cannon = new IssueCannon({
-  safeMode: true,
-  dryRun: false,
-});
-
-const { created, updated, failed } = await cannon.fire({
-  source: 'csv',
-  file: './issues.csv',
-});
-
-console.log(`Created: ${created.length}  Updated: ${updated.length}  Failed: ${failed.length}`);
-```
-
 ---
-
-## Summary Output
-
-After a run with mixed actions, cannon prints three sections:
-
-```
-✔  Created: 4
-
-  ┌───┬──────────────┬──────────────────────────┬────────────────────────────────────┐
-  │ # │ Repo         │ Title                    │ URL                                │
-  ├───┼──────────────┼──────────────────────────┼────────────────────────────────────┤
-  │ 1 │ owner/repo   │ Add dark mode            │ https://github.com/owner/repo/i... │
-  └───┴──────────────┴──────────────────────────┴────────────────────────────────────┘
-
-↑  Updated: 2
-
-  ┌───┬──────────────┬──────────────────────────┬────────────────────────────────────┐
-  │ # │ Repo         │ Title                    │ URL                                │
-  ├───┼──────────────┼──────────────────────────┼────────────────────────────────────┤
-  │ 7 │ owner/repo   │ Fix login bug            │ https://github.com/owner/repo/i... │
-  └───┴──────────────┴──────────────────────────┴────────────────────────────────────┘
-
-✖  Failed / Skipped: 1
-
-  ┌────────┬──────────────┬──────────────────────┬──────────────────────────────┐
-  │ Action │ Repo         │ Title                │ Reason                       │
-  ├────────┼──────────────┼──────────────────────┼──────────────────────────────┤
-  │ update │ owner/repo   │ Nonexistent issue    │ ✕  issue not found for update│
-  └────────┴──────────────┴──────────────────────┴──────────────────────────────┘
-```
-
----
-
-## Roadmap
-
-| Feature                   | Description                                                                       |
-| ------------------------- | --------------------------------------------------------------------------------- |
-| `cannon retry`            | Re-run only the failed issues from the last batch                                 |
-| Issue templates           | Define a `bodyTemplate` in config with `{{variables}}` per issue                  |
-| Webhook notify            | POST a summary to Slack/Discord/Teams on completion _(config ready, coming soon)_ |
-| `cannon serve`            | Local web dashboard with live progress and retry button                           |
-| Fuzzy duplicate detection | Catch near-duplicate titles, not just exact matches                               |
-| Milestone auto-close      | Auto-close milestones once all their issues are created                           |
-| AI issue enhancement      | Improve titles and bodies via Anthropic API before creating                       |
-| GitHub App auth           | Org-wide auth without individual user tokens                                      |
-
----
-
-## Maintainer
-
-[ryzen-xp](https://github.com/ryzen-xp)
-
-## License
-
-MIT
+🛸 **Alien Protocol** 
+-   Built by [ryzen-xp](https://github.com/ryzen-xp) 
+-   [npm](https://www.npmjs.com/package/@alien-protocol/cannon) 
+-   [Report a bug](https://github.com/Alien-Protocol/Cannon/issues) 
+-   MIT License
