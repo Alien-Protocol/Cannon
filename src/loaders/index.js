@@ -17,6 +17,8 @@ const LOADERS = {
   array: async (opts) => opts.data ?? [],
 };
 
+const VALID_ACTIONS = ['create', 'update'];
+
 /**
  * @param {{ source: string, [key: string]: any }} opts
  * @returns {Promise<object[]>}
@@ -34,11 +36,17 @@ export async function loadIssues(opts = {}) {
 
   const issues = await loader(rest);
 
-  // Normalise: ensure required fields exist
+  // Normalise: ensure required fields exist and preserve action field
   return issues.map((row, i) => {
     if (!row.title) throw new Error(`Issue at index ${i} is missing "title"`);
     if (!row.repo) throw new Error(`Issue "${row.title}" is missing "repo"`);
+
+    // Resolve action — default to 'create' if not specified or blank
+    const rawAction = (row.action ?? '').trim().toLowerCase();
+    const action = VALID_ACTIONS.includes(rawAction) ? rawAction : 'create';
+
     return {
+      action,
       repo: row.repo.trim(),
       title: row.title.trim(),
       body: row.body?.trim() ?? '',

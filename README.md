@@ -1,6 +1,6 @@
 # 🛸 @alien-protocol/cannon
 
-> Bulk-create GitHub issues from **CSV, PDF, DOCX, JSON, or any SQL database** — one config file, safe delays, duplicate detection, and resume support.
+> Bulk-create **and update** GitHub issues from **CSV, PDF, DOCX, JSON, or any SQL database** — one config file, safe delays, duplicate detection, and resume support.
 
 ## Installation
 
@@ -33,10 +33,10 @@ cannon init
 # 2. Login with GitHub (no token needed)
 cannon auth login
 
-# 3. Preview — nothing gets created
+# 3. Preview — nothing gets created or updated
 cannon fire --preview
 
-# 4. Create your issues
+# 4. Fire your issues
 cannon fire
 ```
 
@@ -97,24 +97,24 @@ cannon fire
 
 ### Config Options
 
-| Key                       | Default        | Description                                                       |
-| ------------------------- | -------------- | ----------------------------------------------------------------- |
+| Key                       | Default        | Description                                                        |
+| ------------------------- | -------------- | ------------------------------------------------------------------ |
 | `source.type`             | `csv`          | `csv` · `json` · `pdf` · `docx` · `sqlite` · `postgres` · `mysql` |
-| `source.file`             | `./issues.csv` | Path to your issues file                                          |
-| `source.query`            | —              | SQL query (database sources only)                                 |
-| `source.connectionString` | —              | DB connection URL — use `${ENV_VAR}`, never hardcode              |
-| `mode.safeMode`           | `true`         | Random delays between issues — keeps you off GitHub's radar       |
-| `mode.dryRun`             | `false`        | Preview only, nothing created                                     |
-| `mode.resumable`          | `true`         | Saves progress so you can stop and restart safely                 |
-| `delay.min`               | `4`            | Minimum minutes between issues                                    |
-| `delay.max`               | `8`            | Maximum minutes between issues                                    |
-| `labels.autoCreate`       | `false`        | Auto-create missing labels in GitHub                              |
-| `labels.colors`           | see above      | Label name → hex color for auto-creation                          |
-| `output.logFile`          | —              | Save a JSON results log to this path                              |
-| `output.showTable`        | `true`         | Show a summary table after completion                             |
-| `notify.webhookUrl`       | —              | Slack / Discord / Teams webhook URL                               |
-| `notify.onSuccess`        | `true`         | Notify when batch completes successfully                          |
-| `notify.onFailure`        | `true`         | Notify when any issues fail                                       |
+| `source.file`             | `./issues.csv` | Path to your issues file                                           |
+| `source.query`            | —              | SQL query (database sources only)                                  |
+| `source.connectionString` | —              | DB connection URL — use `${ENV_VAR}`, never hardcode               |
+| `mode.safeMode`           | `true`         | Random delays between issues — keeps you off GitHub's radar        |
+| `mode.dryRun`             | `false`        | Preview only, nothing created or updated                           |
+| `mode.resumable`          | `true`         | Saves progress so you can stop and restart safely                  |
+| `delay.min`               | `4`            | Minimum minutes between issues                                     |
+| `delay.max`               | `8`            | Maximum minutes between issues                                     |
+| `labels.autoCreate`       | `false`        | Auto-create missing labels in GitHub                               |
+| `labels.colors`           | see above      | Label name → hex color for auto-creation                           |
+| `output.logFile`          | —              | Save a JSON results log to this path                               |
+| `output.showTable`        | `true`         | Show a summary table after completion                              |
+| `notify.webhookUrl`       | —              | Slack / Discord / Teams webhook URL                                |
+| `notify.onSuccess`        | `true`         | Notify when batch completes successfully                           |
+| `notify.onFailure`        | `true`         | Notify when any issues fail                                        |
 
 ---
 
@@ -159,11 +159,11 @@ Checks your config is valid JSON · token is present · source file exists · is
 
 ### `cannon fire`
 
-Create your issues.
+Create and/or update your issues.
 
 ```bash
 cannon fire                          # run using cannon.config.json
-cannon fire --preview                # dry run — nothing created, no delays
+cannon fire --preview                # dry run — nothing created or updated, no delays
 cannon fire --unsafe                 # no delays (fast but risky)
 cannon fire --delay 2                # fixed 2-minute delay between issues
 cannon fire --fresh                  # ignore saved progress, start over
@@ -175,15 +175,15 @@ cannon fire -s docx -f ./issues.docx --delay 1
 cannon fire -s pdf  -f ./issues.pdf  --unsafe
 ```
 
-| Flag             | What it does                                            |
-| ---------------- | ------------------------------------------------------- |
-| `--preview`      | Dry run — shows what would be created, skips all delays |
-| `--unsafe`       | No delays at all — fast but GitHub may flag as spam     |
-| `--delay <mins>` | Fixed delay in minutes, e.g. `--delay 2`                |
-| `--fresh`        | Ignore saved progress and start from the beginning      |
-| `-s <type>`      | Source type override                                    |
-| `-f <path>`      | Source file override                                    |
-| `-q <sql>`       | SQL query override (database sources)                   |
+| Flag             | What it does                                                      |
+| ---------------- | ----------------------------------------------------------------- |
+| `--preview`      | Dry run — shows what would be created/updated, skips all delays   |
+| `--unsafe`       | No delays at all — fast but GitHub may flag as spam               |
+| `--delay <mins>` | Fixed delay in minutes, e.g. `--delay 2`                          |
+| `--fresh`        | Ignore saved progress and start from the beginning                |
+| `-s <type>`      | Source type override                                              |
+| `-f <path>`      | Source file override                                              |
+| `-q <sql>`       | SQL query override (database sources)                             |
 
 ---
 
@@ -203,22 +203,36 @@ Safe mode is on by default. For large batches never turn it off.
 
 Every source needs at minimum: `repo` and `title`.
 
-| Field       | Required | Description                               |
-| ----------- | -------- | ----------------------------------------- |
-| `repo`      | ✅       | `owner/repo`                              |
-| `title`     | ✅       | Issue title                               |
-| `body`      | —        | Description                               |
-| `labels`    | —        | Comma-separated: `bug,auth`               |
-| `milestone` | —        | Auto-created if it doesn't exist          |
-| `priority`  | —        | `HIGH` · `MED` · `LOW` (informational)    |
-| `track`     | —        | e.g. `auth`, `ui`, `docs` (informational) |
+| Field       | Required | Description                                                     |
+| ----------- | -------- | --------------------------------------------------------------- |
+| `action`    | —        | `create` (default) or `update` — controls what cannon does      |
+| `repo`      | ✅       | `owner/repo`                                                    |
+| `title`     | ✅       | Issue title — used as the lookup key for `update`               |
+| `body`      | —        | Description                                                     |
+| `labels`    | —        | Comma-separated: `bug,auth`                                     |
+| `milestone` | —        | Auto-created if it doesn't exist                                |
+| `priority`  | —        | `HIGH` · `MED` · `LOW` (informational)                          |
+| `track`     | —        | e.g. `auth`, `ui`, `docs` (informational)                       |
+
+### The `action` column
+
+Add an `action` column to any source file to mix creates and updates in a single run.
+
+| Value          | What cannon does                                                                                           |
+| -------------- | ---------------------------------------------------------------------------------------------------------- |
+| `create`       | Opens a **new** issue. Skipped if an issue with the same title already exists (duplicate guard).           |
+| `update`       | Finds the **existing** issue by exact title match, then patches its body, labels, and milestone.           |
+| *(blank/omit)* | Defaults to `create`.                                                                                      |
+
+> **Note:** For `update`, the title is the stable lookup key — it is not changed by the patch. If no matching issue is found, the row fails with `UPDATE_NOT_FOUND` and is shown in the summary.
 
 ### CSV
 
 ```csv
-repo,title,body,labels,milestone
-owner/repo,Fix login bug,"Steps to reproduce...",bug,v1.0
-owner/repo,Add dark mode,"User request",enhancement,v1.1
+action,repo,title,body,labels,milestone
+create,owner/repo,Fix login bug,"Steps to reproduce...",bug,v1.0
+update,owner/repo,Fix login bug,"Updated repro steps and raised priority",bug high,v1.0
+create,owner/repo,Add dark mode,"User request",enhancement,v1.1
 ```
 
 ```json
@@ -230,11 +244,19 @@ owner/repo,Add dark mode,"User request",enhancement,v1.1
 ```json
 [
   {
+    "action": "create",
     "repo": "owner/repo",
     "title": "Fix login bug",
     "body": "Steps to reproduce...",
     "labels": "bug,auth",
     "milestone": "v1.0"
+  },
+  {
+    "action": "update",
+    "repo": "owner/repo",
+    "title": "Fix login bug",
+    "body": "Updated repro steps.",
+    "labels": "bug,auth,high"
   }
 ]
 ```
@@ -272,9 +294,10 @@ owner/repo | Fix login bug | Steps | bug,auth
 
 A table in your Word file. First row = headers.
 
-| repo       | title         | body     | labels   |
-| ---------- | ------------- | -------- | -------- |
-| owner/repo | Fix login bug | Steps... | bug,auth |
+| action | repo       | title         | body     | labels   |
+| ------ | ---------- | ------------- | -------- | -------- |
+| create | owner/repo | Fix login bug | Steps... | bug,auth |
+| update | owner/repo | Fix login bug | Updated. | bug,high |
 
 ```json
 "source": { "type": "docx", "file": "./issues.docx" }
@@ -291,7 +314,7 @@ POSTGRES_URL=postgres://user:password@localhost:5432/mydb
 "source": {
   "type": "postgres",
   "connectionString": "${POSTGRES_URL}",
-  "query": "SELECT repo, title, body, labels, milestone FROM backlog WHERE exported = false"
+  "query": "SELECT action, repo, title, body, labels, milestone FROM backlog WHERE exported = false"
 }
 ```
 
@@ -301,7 +324,7 @@ POSTGRES_URL=postgres://user:password@localhost:5432/mydb
 "source": {
   "type": "mysql",
   "connectionString": "${MYSQL_URL}",
-  "query": "SELECT repo, title, body, labels FROM issues WHERE status = 'pending'"
+  "query": "SELECT action, repo, title, body, labels FROM issues WHERE status = 'pending'"
 }
 ```
 
@@ -311,7 +334,7 @@ POSTGRES_URL=postgres://user:password@localhost:5432/mydb
 "source": {
   "type": "sqlite",
   "file": "./backlog.db",
-  "query": "SELECT repo, title, body, labels FROM issues"
+  "query": "SELECT action, repo, title, body, labels FROM issues"
 }
 ```
 
@@ -361,12 +384,44 @@ const cannon = new IssueCannon({
   dryRun: false,
 });
 
-const { created, failed } = await cannon.fire({
+const { created, updated, failed } = await cannon.fire({
   source: 'csv',
   file: './issues.csv',
 });
 
-console.log(`Created: ${created.length}  Failed: ${failed.length}`);
+console.log(`Created: ${created.length}  Updated: ${updated.length}  Failed: ${failed.length}`);
+```
+
+---
+
+## Summary Output
+
+After a run with mixed actions, cannon prints three sections:
+
+```
+✔  Created: 4
+
+  ┌───┬──────────────┬──────────────────────────┬────────────────────────────────────┐
+  │ # │ Repo         │ Title                    │ URL                                │
+  ├───┼──────────────┼──────────────────────────┼────────────────────────────────────┤
+  │ 1 │ owner/repo   │ Add dark mode            │ https://github.com/owner/repo/i... │
+  └───┴──────────────┴──────────────────────────┴────────────────────────────────────┘
+
+↑  Updated: 2
+
+  ┌───┬──────────────┬──────────────────────────┬────────────────────────────────────┐
+  │ # │ Repo         │ Title                    │ URL                                │
+  ├───┼──────────────┼──────────────────────────┼────────────────────────────────────┤
+  │ 7 │ owner/repo   │ Fix login bug            │ https://github.com/owner/repo/i... │
+  └───┴──────────────┴──────────────────────────┴────────────────────────────────────┘
+
+✖  Failed / Skipped: 1
+
+  ┌────────┬──────────────┬──────────────────────┬──────────────────────────────┐
+  │ Action │ Repo         │ Title                │ Reason                       │
+  ├────────┼──────────────┼──────────────────────┼──────────────────────────────┤
+  │ update │ owner/repo   │ Nonexistent issue    │ ✕  issue not found for update│
+  └────────┴──────────────┴──────────────────────┴──────────────────────────────┘
 ```
 
 ---

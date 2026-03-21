@@ -37,19 +37,10 @@ export async function getOrCreateMilestone(repo, milestoneName, token) {
 
 const _labelCache = {};
 
-/**
- * Ensure a label exists in a repo.
- * Creates it with the given hex color if it doesn't exist.
- * @param {string} repo    — "owner/repo"
- * @param {string} name    — label name
- * @param {string} color   — hex color WITHOUT #, e.g. "ee0701"
- * @param {string} token   — GitHub PAT
- */
 export async function ensureLabel(repo, name, color, token) {
   const key = `${repo}::${name}`;
   if (_labelCache[key]) return;
 
-  // Check existing labels
   const listRes = await fetch(`${GITHUB_API}/repos/${repo}/labels?per_page=100`, {
     headers: authHeaders(token),
   });
@@ -61,7 +52,6 @@ export async function ensureLabel(repo, name, color, token) {
     }
   }
 
-  // Create label
   const createRes = await fetch(`${GITHUB_API}/repos/${repo}/labels`, {
     method: 'POST',
     headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
@@ -71,8 +61,9 @@ export async function ensureLabel(repo, name, color, token) {
 }
 
 const _existingTitles = {};
+const _issueNumberCache = {};
 
-async function fetchExistingTitles(repo, token) {
+async function fetchExistingIssues(repo, token) {
   if (_existingTitles[repo]) return _existingTitles[repo];
   const titles = new Set();
   let page = 1;
@@ -84,7 +75,13 @@ async function fetchExistingTitles(repo, token) {
     if (!res.ok) break;
     const items = await res.json();
     if (!items.length) break;
-    items.forEach((i) => titles.add(i.title.trim().toLowerCase()));
+    items.forEach((i) => {
+      const key = i.title.trim().toLowerCase();
+      titles.add(key);
+      // Cache issue number by title for update lookup
+      if (!_issueNumberCache[repo]) _issueNumberCache[repo] = {};
+      _issueNumberCache[repo][key] = i.number;
+    });
     if (items.length < 100) break;
     page++;
   }
@@ -93,19 +90,26 @@ async function fetchExistingTitles(repo, token) {
 }
 
 /**
+ * Find an existing issue number by title.
+ * Returns null if not found.
+ */
+export async function findIssueByTitle(repo, title, token) {
+  await fetchExistingIssues(repo, token);
+  const key = title.trim().toLowerCase();
+  const number = _issueNumberCache[repo]?.[key];
+  return number ?? null;
+}
+
+/**
  * Create a single GitHub issue.
  * Skips duplicates (same title already exists in repo).
- *
- * @param {object}  issue   — { repo, title, body, labels, milestone }
- * @param {string}  token   — GitHub PAT
- * @param {boolean} dryRun  — if true, returns a fake response without hitting the API
  */
 export async function createIssue(issue, token, dryRun = false) {
   const repo = issue.repo?.trim();
   if (!repo) throw new Error(`Issue missing 'repo': "${issue.title}"`);
 
   if (!dryRun) {
-    const existing = await fetchExistingTitles(repo, token);
+    const existing = await fetchExistingIssues(repo, token);
     if (existing.has(issue.title.trim().toLowerCase())) {
       throw new Error(`DUPLICATE: issue already exists in ${repo}`);
     }
@@ -147,6 +151,64 @@ export async function createIssue(issue, token, dryRun = false) {
     _existingTitles[repo].add(created.title.trim().toLowerCase());
   }
   return created;
+}
+
+/**
+ * Update an existing GitHub issue by title match.
+ * Finds the issue number from the repo, then PATCHes it.
+ *
+ * @param {object}  issue   — { repo, title, body, labels, milestone }
+ * @param {string}  token   — GitHub PAT
+ * @param {boolean} dryRun  — if true, returns a fake response without hitting the API
+ */
+export async function updateIssue(issue, token, dryRun = false) {
+  const repo = issue.repo?.trim();
+  if (!repo) throw new Error(`Issue missing 'repo': "${issue.title}"`);
+
+  if (dryRun) {
+    return {
+      html_url: `https://github.com/${repo}/issues/0`,
+      number: 0,
+      _dryRun: true,
+      _updated: true,
+    };
+  }
+
+  // Find existing issue number by title
+  const issueNumber = await findIssueByTitle(repo, issue.title, token);
+  if (!issueNumber) {
+    throw new Error(`UPDATE_NOT_FOUND: no issue with title "${issue.title}" found in ${repo}`);
+  }
+
+  const labels = normLabels(issue.labels);
+  const milestoneNumber = await getOrCreateMilestone(repo, issue.milestone, token);
+
+  const payload = {
+    title: issue.title?.trim(),
+    body: issue.body?.trim() ?? '',
+    labels,
+    ...(milestoneNumber ? { milestone: milestoneNumber } : {}),
+  };
+
+  const res = await fetch(`${GITHUB_API}/repos/${repo}/issues/${issueNumber}`, {
+    method: 'PATCH',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    const hint =
+      res.status === 403
+        ? ' — check token has "repo" or "public_repo" scope'
+        : res.status === 401
+          ? ' — token invalid or expired; run: cannon auth login'
+          : '';
+    throw new Error(`GitHub ${res.status} on ${repo}#${issueNumber}${hint}: ${text}`);
+  }
+
+  const updated = await res.json();
+  return { ...updated, _updated: true };
 }
 
 function authHeaders(token) {

@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { loadConfig } from './config.js';
 import { loadIssues } from './loaders/index.js';
-import { createIssue, verifyToken, ensureLabel } from './github.js';
+import { createIssue, updateIssue, verifyToken, ensureLabel } from './github.js';
 
 // ── ANSI colours ──────────────────────────────────────────────────
 const c = {
@@ -63,12 +63,12 @@ export class IssueCannon {
       file: config.source?.file,
       query: config.source?.query,
       connectionString: config.source?.connectionString,
-      ...sourceOpts, // programmatic overrides still win
+      ...sourceOpts,
     };
 
     // ── Mode banner ───────────────────────────────────────────────
     if (config.mode.dryRun) {
-      this._log('warn', `${c.yellow}${c.bold}DRY RUN MODE${c.reset} — no issues will be created`);
+      this._log('warn', `${c.yellow}${c.bold}DRY RUN MODE${c.reset} — no issues will be created or updated`);
     }
     if (!config.mode.safeMode && !config.mode.dryRun) {
       this._log(
@@ -81,9 +81,15 @@ export class IssueCannon {
     this._log('step', '📦 Loading issues…');
     const issues = await loadIssues(effectiveSource);
     if (!issues.length) throw new Error('No issues loaded from source');
+
+    // Split by action for reporting
+    const toCreate = issues.filter((r) => r.action === 'create');
+    const toUpdate = issues.filter((r) => r.action === 'update');
+
     this._log(
       'info',
-      `Loaded ${c.bold}${issues.length}${c.reset} issue(s) from ${c.cyan}${effectiveSource.source}${c.reset}`
+      `Loaded ${c.bold}${issues.length}${c.reset} issue(s) from ${c.cyan}${effectiveSource.source}${c.reset}` +
+      `  ${c.dim}(${c.green}${toCreate.length} create${c.reset}${c.dim}, ${c.yellow}${toUpdate.length} update${c.reset}${c.dim})${c.reset}`
     );
 
     const repoMap = issues.reduce((a, r) => {
@@ -137,7 +143,7 @@ export class IssueCannon {
     // ── Resume state ──────────────────────────────────────────────
     const state = config.mode.resumable ? this._loadState() : { completed: [], failed: [] };
     const done = new Set(state.completed);
-    if (done.size) this._log('warn', `Resuming — ${done.size} issue(s) already created, skipping`);
+    if (done.size) this._log('warn', `Resuming — ${done.size} issue(s) already processed, skipping`);
 
     const pending = issues.filter((r) => !done.has(r.title) && !badRepos.has(r.repo));
 
@@ -147,27 +153,26 @@ export class IssueCannon {
       .filter((r) => badRepos.has(r.repo))
       .forEach((r) => {
         const err = 'repo not found or no permission';
-        results_prefail.push({ repo: r.repo, title: r.title, error: err });
-        state.failed.push({ repo: r.repo, title: r.title, error: err });
+        results_prefail.push({ action: r.action, repo: r.repo, title: r.title, error: err });
+        state.failed.push({ action: r.action, repo: r.repo, title: r.title, error: err });
       });
 
     if (!pending.length) {
-      this._log('success', 'All issues already created!');
-      return { created: [], failed: results_prefail };
+      this._log('success', 'All issues already processed!');
+      return { created: [], updated: [], failed: results_prefail };
     }
 
     // ── Delay / timing info ───────────────────────────────────────
     const safeMode = config.mode.safeMode;
-    let estLabel, estMin;
+    let estLabel;
 
     if (!safeMode) {
       estLabel = `${c.red}${c.bold}IMMEDIATE${c.reset} (no delays — unsafe mode)`;
-      estMin = 0;
     } else {
       const mid = (config.delay.minMs + config.delay.maxMs) / 2;
       const delayMs = config.delay.mode === 'fixed' ? config.delay.fixedMs : mid;
       const totalMs = pending.length * delayMs;
-      estMin = Math.ceil(totalMs / 60_000);
+      const estMin = Math.ceil(totalMs / 60_000);
       const delayStr =
         config.delay.mode === 'fixed'
           ? `${fmtDelay(config.delay.fixedMs)} fixed`
@@ -175,11 +180,11 @@ export class IssueCannon {
       estLabel = `${c.yellow}${delayStr}${c.reset}  ·  Est. total: ${c.yellow}~${estMin > 0 ? estMin + ' min' : Math.round(totalMs / 1000) + 's'}${c.reset}`;
     }
 
-    this._log('info', `To create: ${c.bold}${pending.length}${c.reset}  ·  Delay: ${estLabel}\n`);
-    this._log('step', '🚀 Creating issues…\n');
+    this._log('info', `To process: ${c.bold}${pending.length}${c.reset}  ·  Delay: ${estLabel}\n`);
+    this._log('step', '🚀 Processing issues…\n');
 
     const startTime = Date.now();
-    const results = { created: [], failed: [] };
+    const results = { created: [], updated: [], failed: [] };
 
     // ── Progress bar ──────────────────────────────────────────────
     const W = 36;
@@ -201,44 +206,85 @@ export class IssueCannon {
 
     for (let i = 0; i < pending.length; i++) {
       const issue = pending[i];
+      const actionLabel = issue.action === 'update'
+        ? `${c.yellow}updating…${c.reset}`
+        : `${c.cyan}creating…${c.reset}`;
+
       drawBar(
         i,
         pending.length,
-        `${c.yellow}creating…${c.reset}  ${c.dim}${issue.title.slice(0, 35)}${c.reset}`
+        `${actionLabel}  ${c.dim}${issue.title.slice(0, 35)}${c.reset}`
       );
 
       try {
-        const created = await createIssue(issue, config.github.token, config.mode.dryRun);
-        results.created.push({
-          repo: issue.repo,
-          title: issue.title,
-          url: created.html_url,
-          number: created.number,
-        });
-        state.completed.push(issue.title);
-        if (config.mode.resumable) this._saveState(state);
+        let result;
 
-        drawBar(i + 1, pending.length);
-        if (!this.silent)
-          process.stdout.write(
-            `\x1b[2K  ${c.green}✔${c.reset}  ${c.dim}#${created.number ?? i + 1}${c.reset}  ` +
-              `${issue.title.slice(0, 48).padEnd(48)}  ${c.dim}${created.html_url}${c.reset}\n`
-          );
+        if (issue.action === 'update') {
+          // ── UPDATE path ──────────────────────────────────────
+          result = await updateIssue(issue, config.github.token, config.mode.dryRun);
+          results.updated.push({
+            repo: issue.repo,
+            title: issue.title,
+            url: result.html_url,
+            number: result.number,
+          });
+          state.completed.push(issue.title);
+          if (config.mode.resumable) this._saveState(state);
+
+          drawBar(i + 1, pending.length);
+          if (!this.silent)
+            process.stdout.write(
+              `\x1b[2K  ${c.yellow}↑${c.reset}  ${c.dim}#${result.number ?? i + 1}${c.reset}  ` +
+              `${issue.title.slice(0, 48).padEnd(48)}  ${c.dim}${result.html_url}${c.reset}\n`
+            );
+        } else {
+          // ── CREATE path ──────────────────────────────────────
+          result = await createIssue(issue, config.github.token, config.mode.dryRun);
+          results.created.push({
+            repo: issue.repo,
+            title: issue.title,
+            url: result.html_url,
+            number: result.number,
+          });
+          state.completed.push(issue.title);
+          if (config.mode.resumable) this._saveState(state);
+
+          drawBar(i + 1, pending.length);
+          if (!this.silent)
+            process.stdout.write(
+              `\x1b[2K  ${c.green}✔${c.reset}  ${c.dim}#${result.number ?? i + 1}${c.reset}  ` +
+              `${issue.title.slice(0, 48).padEnd(48)}  ${c.dim}${result.html_url}${c.reset}\n`
+            );
+        }
       } catch (err) {
         drawBar(i + 1, pending.length, `${c.red}failed${c.reset}`);
         if (!this.silent)
           process.stdout.write(
             `\x1b[2K  ${c.red}✖${c.reset}  ${issue.title.slice(0, 48).padEnd(48)}  ` +
-              `${c.dim}${err.message.startsWith('DUPLICATE') ? 'already exists (skipped)' : err.message.slice(0, 40)}${c.reset}\n`
+            `${c.dim}${err.message.startsWith('DUPLICATE')
+              ? 'already exists (skipped)'
+              : err.message.startsWith('UPDATE_NOT_FOUND')
+                ? 'issue not found for update'
+                : err.message.slice(0, 40)
+            }${c.reset}\n`
           );
-        results.failed.push({ repo: issue.repo, title: issue.title, error: err.message });
-        state.failed.push({ repo: issue.repo, title: issue.title, error: err.message });
+        results.failed.push({
+          action: issue.action,
+          repo: issue.repo,
+          title: issue.title,
+          error: err.message,
+        });
+        state.failed.push({
+          action: issue.action,
+          repo: issue.repo,
+          title: issue.title,
+          error: err.message,
+        });
         if (config.mode.resumable) this._saveState(state);
       }
 
       // ── Delay between issues ──────────────────────────────────
       if (i < pending.length - 1) {
-        // Never sleep during a dry run / preview — it's pointless
         if (safeMode && !config.mode.dryRun) {
           const delay = this._pickDelay();
           await liveCountdown(Math.round(delay / 1000), pending.length, i + 1, delay, drawBar);
@@ -261,6 +307,7 @@ export class IssueCannon {
         dryRun: config.mode.dryRun,
         safeMode: config.mode.safeMode,
         created: results.created,
+        updated: results.updated,
         failed: results.failed,
       };
       fs.writeFileSync(logPath, JSON.stringify(logData, null, 2));
@@ -271,7 +318,7 @@ export class IssueCannon {
     if (!results.failed.length && config.mode.resumable) {
       try {
         fs.unlinkSync(config.stateFile);
-      } catch {}
+      } catch { }
     }
 
     return results;
@@ -289,7 +336,7 @@ export class IssueCannon {
     try {
       if (fs.existsSync(this.config.stateFile))
         return JSON.parse(fs.readFileSync(this.config.stateFile, 'utf-8'));
-    } catch {}
+    } catch { }
     return { completed: [], failed: [] };
   }
 
@@ -348,10 +395,21 @@ export class IssueCannon {
       console.log('');
     }
 
+    if (results.updated.length) {
+      console.log(`${c.yellow}${c.bold}  ↑  Updated: ${results.updated.length}${c.reset}\n`);
+      boxTable(
+        results.updated.map((r, i) => [`#${r.number ?? i + 1}`, r.repo, r.title, r.url || '']),
+        ['#', 'Repo', 'Title', 'URL'],
+        [c.yellow, c.blue, c.reset, c.dim]
+      );
+      console.log('');
+    }
+
     if (results.failed.length) {
       console.log(`${c.red}${c.bold}  ✖  Failed / Skipped: ${results.failed.length}${c.reset}\n`);
       const shortReason = (err = '') => {
         if (err.startsWith('DUPLICATE:')) return '⟳  already exists (skipped)';
+        if (err.startsWith('UPDATE_NOT_FOUND:')) return '✕  issue not found for update';
         if (err.includes('not found')) return '✕  repo not found';
         if (err.includes('no permission')) return '✕  no permission';
         if (err.includes('required scope')) return '✕  token missing scope';
@@ -362,19 +420,20 @@ export class IssueCannon {
         return err.slice(0, 40);
       };
       boxTable(
-        results.failed.map((r) => [r.repo, r.title, shortReason(r.error)]),
-        ['Repo', 'Title', 'Reason'],
-        [c.blue, c.red, c.yellow]
+        results.failed.map((r) => [r.action ?? 'create', r.repo, r.title, shortReason(r.error)]),
+        ['Action', 'Repo', 'Title', 'Reason'],
+        [c.cyan, c.blue, c.red, c.yellow]
       );
       console.log('');
     }
 
-    const total = results.created.length + results.failed.length;
+    const total = results.created.length + results.updated.length + results.failed.length;
     console.log(
       `  ${c.dim}Total: ${total}  ·  ` +
-        `Created: ${c.green}${results.created.length}${c.reset}${c.dim}  ·  ` +
-        `Failed: ${c.red}${results.failed.length}${c.reset}${c.dim}  ·  ` +
-        `Time: ${c.yellow}${elapsed}${c.reset}\n`
+      `Created: ${c.green}${results.created.length}${c.reset}${c.dim}  ·  ` +
+      `Updated: ${c.yellow}${results.updated.length}${c.reset}${c.dim}  ·  ` +
+      `Failed: ${c.red}${results.failed.length}${c.reset}${c.dim}  ·  ` +
+      `Time: ${c.yellow}${elapsed}${c.reset}\n`
     );
   }
 }
