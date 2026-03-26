@@ -62,7 +62,7 @@ export async function ensureLabel(repo, name, color, token) {
 
 //  Issue title → number cache 
 
-const _existingIssues = {}; 
+const _existingIssues = {};
 
 async function fetchExistingIssues(repo, token) {
   if (_existingIssues[repo]) return _existingIssues[repo];
@@ -103,9 +103,19 @@ export async function createIssue(issue, token, dryRun = false) {
   const labels = normLabels(issue.labels);
   const milestoneNumber = await getOrCreateMilestone(repo, issue.milestone, token);
 
+  const metaLines = [];
+  if (issue.type) metaLines.push(`**Type:** ${issue.type}`);
+  if (issue.priority) metaLines.push(`**Priority:** ${issue.priority}`);
+  if (issue.difficulty) metaLines.push(`**Difficulty:** ${issue.difficulty}`);
+  if (issue.track) metaLines.push(`**Track:** ${issue.track}`);
+
+  const metaFooter = metaLines.length
+    ? `\n\n---\n${metaLines.join(' · ')}`
+    : '';
+
   const payload = {
     title: issue.title?.trim(),
-    body: issue.body?.trim() ?? '',
+    body: (issue.body?.trim() ?? '') + metaFooter,
     labels,
     ...(milestoneNumber ? { milestone: milestoneNumber } : {}),
   };
@@ -152,7 +162,7 @@ export async function updateIssue(issue, token, dryRun = false) {
   const existing = await fetchExistingIssues(repo, token);
   const match = existing.get(issue.title.trim().toLowerCase());
 
-  if (!match) { 
+  if (!match) {
     throw new Error(`NOT_FOUND: no issue titled "${issue.title}" in ${repo}`);
   }
 

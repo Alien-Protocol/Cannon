@@ -65,6 +65,8 @@ export async function loadIssues(opts = {}) {
         milestone: row.milestone?.trim() ?? '',
         priority: row.priority?.trim() ?? '',
         track: row.track?.trim() ?? '',
+        type: row.type?.trim() ?? '',
+        difficulty: row.difficulty?.trim() ?? '',
       };
     });
 }
